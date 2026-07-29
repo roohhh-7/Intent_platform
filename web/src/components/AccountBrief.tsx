@@ -1,5 +1,4 @@
-import { Copy, Check, Bot, X } from 'lucide-react';
-import { useState } from 'react';
+import { Check, Bot } from 'lucide-react';
 
 export default function AccountBrief({ company, onApprove, onClose }: { company: any, onApprove: () => void, onClose: () => void }) {
   const brief = company.account_brief;

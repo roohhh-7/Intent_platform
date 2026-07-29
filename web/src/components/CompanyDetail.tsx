@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Target, Users, Zap, Briefcase, ExternalLink, ThumbsUp, ThumbsDown, Calendar, CheckCircle, XCircle, Search, Bot, Database, Loader2 } from 'lucide-react';
+import { Target, ThumbsUp, ThumbsDown, Calendar, CheckCircle, XCircle, Search, Bot, Database, Loader2 } from 'lucide-react';
 import AccountBrief from './AccountBrief';
 import { supabase } from '../lib/supabase';
 

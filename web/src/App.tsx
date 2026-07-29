@@ -1,4 +1,4 @@
-import { Activity, Search, Bell, BarChart2, Briefcase, Settings, ChevronRight } from 'lucide-react';
+import { Activity, Search, Bell, Briefcase, Settings, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
 import CampaignManager from './components/CampaignManager';
 import NotificationCenter from './components/NotificationCenter';

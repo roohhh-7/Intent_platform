@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Bot, ChevronRight } from 'lucide-react';
+import { Bot } from 'lucide-react';
 
 export default function NotificationCenter({ onSelectCompany }: { onSelectCompany?: (id: string) => void }) {
   const [activeFilter, setActiveFilter] = useState('Pending Review');

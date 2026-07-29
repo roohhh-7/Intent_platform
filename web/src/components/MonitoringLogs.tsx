@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Activity, Clock, CheckCircle, XCircle, AlertTriangle, Zap, Play } from 'lucide-react';
+import { useState } from 'react';
+import { Play } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 const MOCK_COMPANIES = [
