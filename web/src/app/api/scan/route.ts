@@ -10,10 +10,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Unauthorized: Missing Authorization header' }, { status: 401 });
     }
     const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     
-    if (authError || !user) {
-      return NextResponse.json({ success: false, error: 'Unauthorized: Invalid token' }, { status: 401 });
+    // Check if it's the automated Cron Job bypassing auth
+    const isCron = token === process.env.CRON_SECRET;
+    
+    if (!isCron) {
+      // Standard user auth
+      const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+      if (authError || !user) {
+        return NextResponse.json({ success: false, error: 'Unauthorized: Invalid token' }, { status: 401 });
+      }
     }
 
     const { domain, campaignId } = await req.json();
