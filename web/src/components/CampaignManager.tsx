@@ -60,13 +60,19 @@ export default function CampaignManager({ onSelectCampaign }: { onSelectCampaign
 
   const handleCreateCampaign = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Get the current user to satisfy RLS policies
+    const { data: { session } } = await supabase.auth.getSession();
+    const userId = session?.user?.id;
+
     const { error } = await supabase.from('campaigns').insert([
       { 
         name, 
-        icp_definition: icpConfig.selling, // Legacy fallback
+        icp_definition: icpConfig.selling, 
         icp_config: icpConfig, 
         intent_threshold: threshold, 
-        status: 'Active' 
+        status: 'Active',
+        ...(userId ? { user_id: userId } : {}) // Attach user_id if logged in
       }
     ]);
     
