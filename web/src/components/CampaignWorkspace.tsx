@@ -321,8 +321,6 @@ export default function CampaignWorkspace({ campaignId, onBack }: CampaignWorksp
           </div>
         )}
 
-          </div>
-        )}
       </div>
       {/* Automated Workflow Modal */}
       {workflowState.company && (
