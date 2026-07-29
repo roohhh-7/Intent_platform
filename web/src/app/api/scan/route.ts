@@ -121,10 +121,13 @@ export async function POST(req: Request) {
 
     // Link to campaign if provided
     if (campaignId) {
-      await supabase.from('campaign_companies').insert({
+      const { error: linkError } = await supabase.from('campaign_companies').insert({
         campaign_id: campaignId,
         company_id: insertedCompany.id
       });
+      if (linkError && linkError.code !== '23505') {
+        console.error('[Engine] Non-fatal error linking campaign:', linkError);
+      }
     }
 
     return NextResponse.json({ success: true, data: { company: insertedCompany, analysis } });

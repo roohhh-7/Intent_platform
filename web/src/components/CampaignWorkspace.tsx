@@ -72,9 +72,11 @@ export default function CampaignWorkspace({ campaignId, onBack }: CampaignWorksp
         },
         body: JSON.stringify({ domain: manualDomain, campaignId })
       });
-      const data = await response.json();
       if (data.success) {
-        setCompanies(prev => [data.data.company, ...prev]);
+        setCompanies(prev => {
+          const filtered = prev.filter(c => c.id !== data.data.company.id);
+          return [data.data.company, ...filtered];
+        });
         setManualDomain('');
       } else {
         alert('Scan failed: ' + data.error);
