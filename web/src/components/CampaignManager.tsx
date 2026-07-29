@@ -14,7 +14,7 @@ interface Campaign {
 const COMPANY_SIZES = ['1-10', '11-20', '21-50', '51-100', '101-200', '201-500', '501-1000', '1001-2000', '2001-5000', '5001-10000', '10001+'];
 const MARKET_SEGMENTS = ['B2B', 'B2C', 'B2B2C', 'SaaS', 'FinTech', 'E-commerce', 'Marketplace', 'D2C', 'Retail', 'Healthcare', 'Consulting', 'Services', 'Non-Profit'];
 
-export default function CampaignManager() {
+export default function CampaignManager({ onSelectCampaign }: { onSelectCampaign?: (id: string) => void }) {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [showSlideover, setShowSlideover] = useState(false);
@@ -114,8 +114,12 @@ export default function CampaignManager() {
             ) : campaigns.length === 0 ? (
               <tr><td colSpan={5} className="p-4 text-center text-text-muted">No campaigns found. Create one to start monitoring!</td></tr>
             ) : campaigns.map((camp) => (
-              <tr key={camp.id} className="hover:bg-surface transition-colors group">
-                <td className="p-3 font-medium text-primary">{camp.name}</td>
+              <tr 
+                key={camp.id} 
+                className="hover:bg-surface transition-colors group cursor-pointer"
+                onClick={() => onSelectCampaign && onSelectCampaign(camp.id)}
+              >
+                <td className="p-3 font-medium text-primary hover:underline">{camp.name}</td>
                 <td className="p-3 text-text-muted max-w-xs truncate">
                   {camp.icp_config?.marketSegment?.join(', ') || 'N/A'}
                 </td>
@@ -126,7 +130,7 @@ export default function CampaignManager() {
                     {camp.status}
                   </span>
                 </td>
-                <td className="p-3 text-right space-x-2">
+                <td className="p-3 text-right space-x-2" onClick={(e) => e.stopPropagation()}>
                   <div className="opacity-0 group-hover:opacity-100 transition-opacity">
                     {camp.status === 'Paused' ? (
                       <button className="p-1 text-text-muted hover:text-emerald-600 transition-colors" title="Resume"><Play className="w-4 h-4" /></button>

@@ -11,10 +11,13 @@ import DashboardStats from '@/components/DashboardStats';
 import SettingsView from '@/components/Settings';
 import MonitoringLogs from '@/components/MonitoringLogs';
 
+import CampaignWorkspace from '@/components/CampaignWorkspace';
+
 export default function Home() {
   const [session, setSession] = useState<any>(null);
   const [activeView, setActiveView] = useState('Dashboard');
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -45,6 +48,9 @@ export default function Home() {
     setActiveView(label);
     if (label !== 'Companies') {
       setSelectedCompanyId(null);
+    }
+    if (label !== 'Campaign Workspace') {
+      setSelectedCampaignId(null);
     }
   };
 
@@ -135,7 +141,13 @@ export default function Home() {
             {selectedCompanyId && (
               <>
                 <ChevronRight className="w-3 h-3" />
-                <span className="text-text font-medium">Acme Corp</span>
+                <span className="text-text font-medium">Company Details</span>
+              </>
+            )}
+            {selectedCampaignId && (
+              <>
+                <ChevronRight className="w-3 h-3" />
+                <span className="text-text font-medium">Campaign Workspace</span>
               </>
             )}
           </div>
@@ -145,7 +157,7 @@ export default function Home() {
         <div className="flex-1 p-6 overflow-y-auto">
           <div className="max-w-6xl mx-auto">
             {activeView === 'Dashboard' && <DashboardStats />}
-            {activeView === 'Campaigns' && <CampaignManager />}
+            {activeView === 'Campaigns' && <CampaignManager onSelectCampaign={(id) => { setSelectedCampaignId(id); setActiveView('Campaign Workspace'); }} />}
             {activeView === 'Alerts' && <NotificationCenter onSelectCompany={(id) => { setSelectedCompanyId(id); setActiveView('Companies'); }} />}
             {activeView === 'Companies' && !selectedCompanyId && (
               <CompaniesList onSelectCompany={setSelectedCompanyId} />
@@ -160,6 +172,9 @@ export default function Home() {
                 </button>
                 <CompanyDetail companyId={selectedCompanyId} onClose={() => setSelectedCompanyId(null)} />
               </div>
+            )}
+            {activeView === 'Campaign Workspace' && selectedCampaignId && (
+               <CampaignWorkspace campaignId={selectedCampaignId} onBack={() => { setSelectedCampaignId(null); setActiveView('Campaigns'); }} />
             )}
             {activeView === 'System Logs' && <MonitoringLogs />}
             {activeView === 'Settings' && <SettingsView />}
