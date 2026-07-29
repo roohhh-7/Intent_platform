@@ -27,8 +27,8 @@ export default function CompaniesList({ onSelectCompany }: { onSelectCompany: (i
         const link = links?.find(l => l.company_id === comp.id);
         const camp = link ? camps?.find(c => c.id === link.campaign_id) : null;
         
-        // If not assigned to a campaign (e.g. older mock data), put in Unassigned
-        const campName = camp ? camp.name : 'Unassigned Prospects';
+        // If not assigned to a campaign (e.g. standalone search), put in Domain Search
+        const campName = camp ? camp.name : 'Domain Search';
         
         if (!grouped[campName]) grouped[campName] = [];
         grouped[campName].push(comp);

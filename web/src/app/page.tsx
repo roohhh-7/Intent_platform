@@ -156,7 +156,7 @@ export default function Home() {
         {/* Content Area */}
         <div className="flex-1 p-6 overflow-y-auto">
           <div className="max-w-6xl mx-auto">
-            {activeView === 'Dashboard' && <DashboardStats />}
+            {activeView === 'Dashboard' && <DashboardStats onStartCampaign={() => setActiveView('Campaigns')} />}
             {activeView === 'Campaigns' && <CampaignManager onSelectCampaign={(id) => { setSelectedCampaignId(id); setActiveView('Campaign Workspace'); }} />}
             {activeView === 'Alerts' && <NotificationCenter onSelectCompany={(id) => { setSelectedCompanyId(id); setActiveView('Companies'); }} />}
             {activeView === 'Companies' && !selectedCompanyId && (
