@@ -16,12 +16,13 @@ export default function Login() {
     setError(null);
     
     try {
+      const cleanEmail = email.trim();
       if (isSignUp) {
-        const { error } = await supabase.auth.signUp({ email, password });
+        const { error } = await supabase.auth.signUp({ email: cleanEmail, password });
         if (error) throw error;
         alert('Registration successful! You are now logged in.');
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { error } = await supabase.auth.signInWithPassword({ email: cleanEmail, password });
         if (error) throw error;
       }
     } catch (err: any) {
