@@ -72,6 +72,7 @@ export default function CampaignWorkspace({ campaignId, onBack }: CampaignWorksp
         },
         body: JSON.stringify({ domain: manualDomain, campaignId })
       });
+      const data = await response.json();
       if (data.success) {
         setCompanies(prev => {
           const filtered = prev.filter(c => c.id !== data.data.company.id);
