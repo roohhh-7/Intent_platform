@@ -107,7 +107,7 @@ export async function POST(req: Request) {
       { event: 'Intent Alert Created', timestamp: new Date().toISOString() }
     ];
 
-    const { data: insertedCompany, error } = await supabase.from('companies').insert([{
+    const { data: insertedCompany, error } = await supabase.from('companies').upsert([{
       name: analysis.companyName,
       domain: domain,
       industry: analysis.industry,
@@ -115,7 +115,7 @@ export async function POST(req: Request) {
       status: 'Pending',
       signals: analysis.signals,
       timeline: initialTimeline
-    }]).select().single();
+    }], { onConflict: 'domain' }).select().single();
 
     if (error) throw error;
 
