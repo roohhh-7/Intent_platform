@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { ArrowLeft, Target, Users, Mail, Activity, BarChart, CheckCircle2, XCircle, Clock, Linkedin, Phone, RefreshCw, Send, Check } from 'lucide-react';
+import { ArrowLeft, Target, Users, Mail, Activity, BarChart, CheckCircle2, XCircle, Clock, MessageSquare, Phone, RefreshCw, Send, Check, Link } from 'lucide-react';
 
 interface CampaignWorkspaceProps {
   campaignId: string;
@@ -434,7 +434,7 @@ export default function CampaignWorkspace({ campaignId, onBack }: CampaignWorksp
                             <div>
                               <div className="font-semibold text-text">{contact.name}</div>
                               <div className="text-xs text-text-muted">{contact.title}</div>
-                              <a href={contact.linkedin} target="_blank" className="text-xs text-blue-500 hover:underline flex items-center gap-1 mt-1"><Linkedin className="w-3 h-3" /> LinkedIn Profile</a>
+                              <a href={contact.linkedin} target="_blank" className="text-xs text-blue-500 hover:underline flex items-center gap-1 mt-1"><Link className="w-3 h-3" /> Profile</a>
                             </div>
                             
                             {!draft ? (
@@ -488,7 +488,7 @@ export default function CampaignWorkspace({ campaignId, onBack }: CampaignWorksp
                                   {/* LinkedIn */}
                                   <div>
                                     <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-text-muted mb-2">
-                                      <Linkedin className="w-4 h-4 text-blue-500" /> LinkedIn Request
+                                      <MessageSquare className="w-4 h-4 text-blue-500" /> LinkedIn Request
                                     </div>
                                     <div className="bg-background rounded border border-border p-3 text-sm text-text-muted">
                                       {draft.linkedin_message}
