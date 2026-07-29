@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { ArrowLeft, Target, Users, Mail, Activity, BarChart, CheckCircle2, XCircle, Clock } from 'lucide-react';
+import { ArrowLeft, Target, Users, Mail, Activity, BarChart, CheckCircle2, XCircle, Clock, Linkedin, Phone, RefreshCw, Send, Check } from 'lucide-react';
 
 interface CampaignWorkspaceProps {
   campaignId: string;
@@ -12,11 +12,14 @@ export default function CampaignWorkspace({ campaignId, onBack }: CampaignWorksp
   const [activeTab, setActiveTab] = useState<'Overview' | 'Pipeline' | 'Enrichment' | 'Outreach'>('Pipeline');
   const [campaign, setCampaign] = useState<any>(null);
   const [companies, setCompanies] = useState<any[]>([]);
+  const [outreachDrafts, setOutreachDrafts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // Manual scan state
+  // Action states
   const [manualDomain, setManualDomain] = useState('');
   const [isScanning, setIsScanning] = useState(false);
+  const [isGenerating, setIsGenerating] = useState<string | null>(null);
+  const [isSyncing, setIsSyncing] = useState<string | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -30,8 +33,21 @@ export default function CampaignWorkspace({ campaignId, onBack }: CampaignWorksp
     ]);
     
     if (campRes.data) setCampaign(campRes.data);
+    
     if (compRes.data) {
-      setCompanies(compRes.data.map((c: any) => c.companies).filter(Boolean));
+      const companiesData = compRes.data.map((c: any) => c.companies).filter(Boolean);
+      setCompanies(companiesData);
+      
+      if (companiesData.length > 0) {
+        const companyIds = companiesData.map(c => c.id);
+        const { data: outreachData } = await supabase
+          .from('outreach')
+          .select('*')
+          .in('company_id', companyIds)
+          .order('generated_at', { ascending: false });
+        
+        if (outreachData) setOutreachDrafts(outreachData);
+      }
     }
     setLoading(false);
   };
@@ -69,6 +85,84 @@ export default function CampaignWorkspace({ campaignId, onBack }: CampaignWorksp
     setIsScanning(false);
   };
 
+  const handleEnrich = async (companyId: string, domain: string) => {
+    try {
+      const response = await fetch('/api/enrich', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyId, domain })
+      });
+      const data = await response.json();
+      if (data.success) {
+        setCompanies(prev => prev.map(c => c.id === companyId ? { ...c, status: 'Enriched', contacts: data.data.contacts } : c));
+      } else {
+        alert('Enrichment failed: ' + data.error);
+      }
+    } catch (err: any) {
+      alert('Error: ' + err.message);
+    }
+  };
+
+  const handleGenerateDraft = async (company: any, contact: any) => {
+    const key = `${company.id}-${contact.email}`;
+    setIsGenerating(key);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = await fetch('/api/outreach', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`
+        },
+        body: JSON.stringify({ company, contact, campaignId })
+      });
+      const data = await response.json();
+      if (data.success) {
+        // Replace existing draft for this contact if regenerating, or add new
+        setOutreachDrafts(prev => {
+          const filtered = prev.filter(d => !(d.company_id === company.id && d.contact.email === contact.email));
+          return [data.data, ...filtered];
+        });
+      } else {
+        alert('Failed to generate outreach: ' + data.error);
+      }
+    } catch (err: any) {
+      alert('Error: ' + err.message);
+    }
+    setIsGenerating(null);
+  };
+
+  const handleApproveDraft = async (outreachId: string) => {
+    const { error } = await supabase.from('outreach').update({ status: 'Approved' }).eq('id', outreachId);
+    if (!error) {
+      setOutreachDrafts(prev => prev.map(d => d.id === outreachId ? { ...d, status: 'Approved' } : d));
+    }
+  };
+
+  const handleSyncCRM = async (outreachId: string) => {
+    setIsSyncing(outreachId);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = await fetch('/api/crm', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`
+        },
+        body: JSON.stringify({ outreachId })
+      });
+      const data = await response.json();
+      if (data.success) {
+        setOutreachDrafts(prev => prev.map(d => d.id === outreachId ? data.data : d));
+      } else {
+        alert('CRM Sync failed: ' + data.error);
+      }
+    } catch (err: any) {
+      alert('Error: ' + err.message);
+    }
+    setIsSyncing(null);
+  };
+
   if (loading) {
     return <div className="p-8 text-center text-text-muted">Loading workspace...</div>;
   }
@@ -87,25 +181,7 @@ export default function CampaignWorkspace({ campaignId, onBack }: CampaignWorksp
   const pending = companies.filter(c => c.status === 'Pending');
   const approved = companies.filter(c => c.status === 'Approved' || c.status === 'Enriched');
   const ignored = companies.filter(c => c.status === 'Ignored');
-
-  const handleEnrich = async (companyId: string, domain: string) => {
-    try {
-      const response = await fetch('/api/enrich', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ companyId, domain })
-      });
-      const data = await response.json();
-      if (data.success) {
-        // Update local state
-        setCompanies(prev => prev.map(c => c.id === companyId ? { ...c, status: 'Enriched', contacts: data.data.contacts } : c));
-      } else {
-        alert('Enrichment failed: ' + data.error);
-      }
-    } catch (err: any) {
-      alert('Error: ' + err.message);
-    }
-  };
+  const enriched = companies.filter(c => c.status === 'Enriched');
 
   return (
     <div className="flex flex-col h-full space-y-6">
@@ -170,8 +246,8 @@ export default function CampaignWorkspace({ campaignId, onBack }: CampaignWorksp
                 <div className="text-2xl font-mono text-emerald-500">{approved.length}</div>
               </div>
               <div className="panel p-4">
-                <div className="text-xs text-text-muted uppercase tracking-widest mb-1">Ignored</div>
-                <div className="text-2xl font-mono text-text-muted">{ignored.length}</div>
+                <div className="text-xs text-text-muted uppercase tracking-widest mb-1">Generated Drafts</div>
+                <div className="text-2xl font-mono text-primary">{outreachDrafts.length}</div>
               </div>
             </div>
             
@@ -303,8 +379,8 @@ export default function CampaignWorkspace({ campaignId, onBack }: CampaignWorksp
                         </td>
                         <td className="p-3 text-right">
                           {company.status === 'Enriched' ? (
-                            <button className="text-xs bg-surface border border-border text-text-muted px-3 py-1.5 rounded font-medium hover:text-text transition-colors">
-                              View Contacts
+                            <button onClick={() => setActiveTab('Outreach')} className="text-xs bg-surface border border-border text-text-muted px-3 py-1.5 rounded font-medium hover:text-text transition-colors">
+                              Go to Outreach
                             </button>
                           ) : (
                             <button 
@@ -325,10 +401,154 @@ export default function CampaignWorkspace({ campaignId, onBack }: CampaignWorksp
         )}
 
         {activeTab === 'Outreach' && (
-          <div className="panel p-8 text-center text-text-muted flex flex-col items-center justify-center min-h-[400px]">
-            <Mail className="w-12 h-12 mb-4 opacity-20" />
-            <h3 className="text-lg font-medium text-text mb-2">Generated Outreach</h3>
-            <p className="max-w-md mx-auto">AI-drafted emails tailored to the specific intent signals and decision makers will appear here, ready for CRM sync.</p>
+          <div className="space-y-8">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Outreach Generation & CRM Sync</h2>
+              <div className="text-sm text-text-muted">AI-crafted drafts explicitly citing buying signals.</div>
+            </div>
+
+            {enriched.length === 0 ? (
+              <div className="panel p-8 text-center text-text-muted flex flex-col items-center justify-center min-h-[300px]">
+                <Mail className="w-12 h-12 mb-4 opacity-20" />
+                <h3 className="text-lg font-medium text-text mb-2">No Enriched Contacts</h3>
+                <p className="max-w-md mx-auto">Enrich some companies in the Enrichment Queue first before generating outreach.</p>
+              </div>
+            ) : (
+              <div className="space-y-12">
+                {enriched.map(company => (
+                  <div key={company.id} className="space-y-4">
+                    <h3 className="text-md font-semibold text-primary border-b border-border pb-2 flex justify-between">
+                      {company.name} <span className="text-xs text-text-muted normal-case font-normal">Intent Score: {company.intent_score}</span>
+                    </h3>
+                    
+                    {company.contacts && company.contacts.map((contact: any, i: number) => {
+                      const draft = outreachDrafts.find(d => d.company_id === company.id && d.contact.email === contact.email);
+                      const key = `${company.id}-${contact.email}`;
+                      const isGen = isGenerating === key;
+                      const isSync = isSyncing === draft?.id;
+
+                      return (
+                        <div key={i} className="panel p-5 grid grid-cols-12 gap-6 relative overflow-hidden">
+                          {/* Sidebar Info */}
+                          <div className="col-span-12 md:col-span-3 space-y-4">
+                            <div>
+                              <div className="font-semibold text-text">{contact.name}</div>
+                              <div className="text-xs text-text-muted">{contact.title}</div>
+                              <a href={contact.linkedin} target="_blank" className="text-xs text-blue-500 hover:underline flex items-center gap-1 mt-1"><Linkedin className="w-3 h-3" /> LinkedIn Profile</a>
+                            </div>
+                            
+                            {!draft ? (
+                              <button 
+                                onClick={() => handleGenerateDraft(company, contact)}
+                                disabled={isGen}
+                                className="w-full bg-primary text-background px-3 py-2 rounded text-sm font-medium hover:bg-primary-hover disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+                              >
+                                {isGen ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
+                                {isGen ? 'Drafting...' : 'Generate AI Draft'}
+                              </button>
+                            ) : (
+                              <div className="space-y-3 pt-4 border-t border-border">
+                                <div className="text-[10px] uppercase font-bold tracking-widest text-text-muted">Status</div>
+                                <div className="flex flex-col gap-2">
+                                  {draft.status === 'Draft' && <span className="inline-block px-2 py-1 bg-surface border border-border text-xs rounded text-text font-medium w-fit">Pending Review</span>}
+                                  {draft.status === 'Approved' && <span className="inline-block px-2 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-xs rounded font-medium w-fit">Approved for CRM</span>}
+                                  {draft.status === 'Synced' && <span className="inline-block px-2 py-1 bg-blue-500/10 border border-blue-500/20 text-blue-500 text-xs rounded font-medium w-fit flex items-center gap-1"><Check className="w-3 h-3"/> Synced to CRM</span>}
+                                </div>
+                                
+                                {draft.status === 'Synced' && draft.crm_record_id && (
+                                  <div className="mt-2 text-xs text-text-muted">
+                                    <div className="mb-1">{draft.crm_provider}</div>
+                                    <div className="font-mono text-[10px] break-all">{draft.crm_record_id}</div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Draft Area */}
+                          <div className="col-span-12 md:col-span-9 bg-surface rounded border border-border p-5 relative">
+                            {!draft ? (
+                              <div className="h-full flex items-center justify-center text-text-muted text-sm italic">
+                                AI has not generated a draft yet.
+                              </div>
+                            ) : (
+                              <div className="space-y-6">
+                                {/* Email */}
+                                <div>
+                                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-text-muted mb-3">
+                                    <Mail className="w-4 h-4" /> Email Sequence
+                                  </div>
+                                  <div className="bg-background rounded border border-border p-3">
+                                    <div className="text-sm font-medium border-b border-border pb-2 mb-2">Subject: {draft.email_subject}</div>
+                                    <div className="text-sm whitespace-pre-wrap text-text-muted leading-relaxed">{draft.email_body}</div>
+                                  </div>
+                                </div>
+                                
+                                <div className="grid grid-cols-2 gap-4">
+                                  {/* LinkedIn */}
+                                  <div>
+                                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-text-muted mb-2">
+                                      <Linkedin className="w-4 h-4 text-blue-500" /> LinkedIn Request
+                                    </div>
+                                    <div className="bg-background rounded border border-border p-3 text-sm text-text-muted">
+                                      {draft.linkedin_message}
+                                    </div>
+                                  </div>
+
+                                  {/* Cold Call */}
+                                  <div>
+                                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-text-muted mb-2">
+                                      <Phone className="w-4 h-4 text-emerald-500" /> Cold Call Hook
+                                    </div>
+                                    <div className="bg-background rounded border border-border p-3 text-sm text-text-muted">
+                                      <ul className="list-disc pl-4 space-y-1">
+                                        {draft.call_notes.split('\n').filter(Boolean).map((n: string, i: number) => <li key={i}>{n.replace(/^[-*]\s*/, '')}</li>)}
+                                      </ul>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Actions */}
+                                <div className="pt-4 border-t border-border flex justify-end gap-3">
+                                  {draft.status === 'Draft' && (
+                                    <>
+                                      <button 
+                                        onClick={() => handleGenerateDraft(company, contact)}
+                                        disabled={isGen}
+                                        className="px-4 py-1.5 text-sm font-medium border border-border rounded text-text-muted hover:text-text transition-colors flex items-center gap-2 disabled:opacity-50"
+                                      >
+                                        <RefreshCw className={`w-3.5 h-3.5 ${isGen ? 'animate-spin' : ''}`} /> Regenerate
+                                      </button>
+                                      <button 
+                                        onClick={() => handleApproveDraft(draft.id)}
+                                        className="px-4 py-1.5 text-sm font-medium bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 rounded hover:bg-emerald-500 hover:text-white transition-colors flex items-center gap-2"
+                                      >
+                                        <CheckCircle2 className="w-3.5 h-3.5" /> Approve Draft
+                                      </button>
+                                    </>
+                                  )}
+                                  
+                                  {draft.status === 'Approved' && (
+                                    <button 
+                                      onClick={() => handleSyncCRM(draft.id)}
+                                      disabled={isSync}
+                                      className="px-4 py-1.5 text-sm font-medium bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors flex items-center gap-2 disabled:opacity-50"
+                                    >
+                                      {isSync ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                                      {isSync ? 'Pushing to CRM...' : 'Sync to CRM'}
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
