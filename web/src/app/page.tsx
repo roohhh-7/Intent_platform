@@ -10,7 +10,8 @@ import CompaniesList from '@/components/CompaniesList';
 import DashboardStats from '@/components/DashboardStats';
 import SettingsView from '@/components/Settings';
 import MonitoringLogs from '@/components/MonitoringLogs';
-
+import OutboundList from '@/components/OutboundList';
+import OutboundDetail from '@/components/OutboundDetail';
 import CampaignWorkspace from '@/components/CampaignWorkspace';
 
 export default function Home() {
@@ -18,6 +19,7 @@ export default function Home() {
   const [activeView, setActiveView] = useState('Dashboard');
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
+  const [selectedOutboundId, setSelectedOutboundId] = useState<string | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -42,6 +44,7 @@ export default function Home() {
     { icon: Search, label: 'Companies' },
     { icon: Briefcase, label: 'Campaigns' },
     { icon: Bell, label: 'Alerts' },
+    { icon: Send, label: 'Outbounds' },
   ];
 
   const handleNavClick = (label: string) => {
@@ -51,6 +54,9 @@ export default function Home() {
     }
     if (label !== 'Campaign Workspace') {
       setSelectedCampaignId(null);
+    }
+    if (label !== 'Outbounds') {
+      setSelectedOutboundId(null);
     }
   };
 
@@ -150,6 +156,12 @@ export default function Home() {
                 <span className="text-text font-medium">Campaign Workspace</span>
               </>
             )}
+            {selectedOutboundId && (
+              <>
+                <ChevronRight className="w-3 h-3" />
+                <span className="text-text font-medium">Outbound Details</span>
+              </>
+            )}
           </div>
         </header>
 
@@ -172,6 +184,12 @@ export default function Home() {
                 </button>
                 <CompanyDetail companyId={selectedCompanyId} onClose={() => setSelectedCompanyId(null)} />
               </div>
+            )}
+            {activeView === 'Outbounds' && !selectedOutboundId && (
+              <OutboundList onSelectCompany={setSelectedOutboundId} />
+            )}
+            {activeView === 'Outbounds' && selectedOutboundId && (
+              <OutboundDetail companyId={selectedOutboundId} onClose={() => setSelectedOutboundId(null)} />
             )}
             {activeView === 'Campaign Workspace' && selectedCampaignId && (
                <CampaignWorkspace campaignId={selectedCampaignId} onBack={() => { setSelectedCampaignId(null); setActiveView('Campaigns'); }} />

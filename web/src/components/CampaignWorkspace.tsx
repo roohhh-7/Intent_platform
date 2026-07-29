@@ -9,7 +9,7 @@ interface CampaignWorkspaceProps {
 }
 
 export default function CampaignWorkspace({ campaignId, onBack }: CampaignWorkspaceProps) {
-  const [activeTab, setActiveTab] = useState<'Overview' | 'Pipeline' | 'Outbound'>('Pipeline');
+  const [activeTab, setActiveTab] = useState<'Overview' | 'Pipeline'>('Pipeline');
   const [campaign, setCampaign] = useState<any>(null);
   const [companies, setCompanies] = useState<any[]>([]);
   const [outreachDrafts, setOutreachDrafts] = useState<any[]>([]);
@@ -159,8 +159,7 @@ export default function CampaignWorkspace({ campaignId, onBack }: CampaignWorksp
 
   const tabs = [
     { id: 'Overview', icon: BarChart, label: 'Overview' },
-    { id: 'Pipeline', icon: Target, label: 'Intent Pipeline' },
-    { id: 'Outbound', icon: Send, label: 'Outbound History' }
+    { id: 'Pipeline', icon: Target, label: 'Intent Pipeline' }
   ];
 
   const pending = companies.filter(c => c.status === 'Pending');
@@ -322,115 +321,6 @@ export default function CampaignWorkspace({ campaignId, onBack }: CampaignWorksp
           </div>
         )}
 
-        {activeTab === 'Outbound' && (
-          <div className="space-y-8">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-semibold">Outbound History</h2>
-                <div className="text-sm text-text-muted">Review automated enrichment, AI generation, and CRM syncs.</div>
-              </div>
-            </div>
-
-            {enriched.length === 0 ? (
-              <div className="panel p-8 text-center text-text-muted flex flex-col items-center justify-center min-h-[300px]">
-                <Send className="w-12 h-12 mb-4 opacity-20" />
-                <h3 className="text-lg font-medium text-text mb-2">No Outbound History</h3>
-                <p className="max-w-md mx-auto">Approve a prospect in the Intent Pipeline to start the automated workflow.</p>
-              </div>
-            ) : (
-              <div className="space-y-12">
-                {enriched.map(company => (
-                  <div key={company.id} className="space-y-4">
-                    <h3 className="text-md font-semibold text-primary border-b border-border pb-2 flex justify-between">
-                      {company.name} <span className="text-xs text-text-muted normal-case font-normal">Intent Score: {company.intent_score}</span>
-                    </h3>
-                    
-                    {company.contacts && company.contacts.map((contact: any, i: number) => {
-                      const draft = outreachDrafts.find(d => d.company_id === company.id && d.contact.email === contact.email);
-
-                      return (
-                        <div key={i} className="panel p-5 grid grid-cols-12 gap-6 relative overflow-hidden">
-                          {/* Sidebar Info */}
-                          <div className="col-span-12 md:col-span-3 space-y-4">
-                            <div>
-                              <div className="font-semibold text-text">{contact.name}</div>
-                              <div className="text-xs text-text-muted">{contact.title}</div>
-                              <a href={contact.linkedin} target="_blank" className="text-xs text-blue-500 hover:underline flex items-center gap-1 mt-1"><Link className="w-3 h-3" /> Profile</a>
-                            </div>
-                            
-                            {draft && (
-                              <div className="space-y-3 pt-4 border-t border-border">
-                                <div className="text-[10px] uppercase font-bold tracking-widest text-text-muted">Status</div>
-                                <div className="flex flex-col gap-2">
-                                  <span className="inline-block px-2 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-xs rounded font-medium w-fit flex items-center gap-1"><Check className="w-3 h-3"/> Enriched (Apollo)</span>
-                                  <span className="inline-block px-2 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-xs rounded font-medium w-fit flex items-center gap-1"><Check className="w-3 h-3"/> Drafted (Gemini)</span>
-                                  {draft.status === 'Synced' && (
-                                    <span className="inline-block px-2 py-1 bg-blue-500/10 border border-blue-500/20 text-blue-500 text-xs rounded font-medium w-fit flex items-center gap-1"><Check className="w-3 h-3"/> Synced to CRM</span>
-                                  )}
-                                </div>
-                                
-                                {draft.status === 'Synced' && draft.crm_record_id && (
-                                  <div className="mt-2 text-xs text-text-muted">
-                                    <div className="mb-1">{draft.crm_provider}</div>
-                                    <div className="font-mono text-[10px] break-all">{draft.crm_record_id}</div>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Draft Area */}
-                          <div className="col-span-12 md:col-span-9 bg-surface rounded border border-border p-5 relative">
-                            {!draft ? (
-                              <div className="h-full flex items-center justify-center text-text-muted text-sm italic">
-                                Draft missing or failed.
-                              </div>
-                            ) : (
-                              <div className="space-y-6">
-                                {/* Email */}
-                                <div>
-                                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-text-muted mb-3">
-                                    <Mail className="w-4 h-4" /> Email Sequence
-                                  </div>
-                                  <div className="bg-background rounded border border-border p-3">
-                                    <div className="text-sm font-medium border-b border-border pb-2 mb-2">Subject: {draft.email_subject}</div>
-                                    <div className="text-sm whitespace-pre-wrap text-text-muted leading-relaxed">{draft.email_body}</div>
-                                  </div>
-                                </div>
-                                
-                                <div className="grid grid-cols-2 gap-4">
-                                  {/* LinkedIn */}
-                                  <div>
-                                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-text-muted mb-2">
-                                      <MessageSquare className="w-4 h-4 text-blue-500" /> LinkedIn Request
-                                    </div>
-                                    <div className="bg-background rounded border border-border p-3 text-sm text-text-muted">
-                                      {draft.linkedin_message}
-                                    </div>
-                                  </div>
-
-                                  {/* Cold Call */}
-                                  <div>
-                                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-text-muted mb-2">
-                                      <Phone className="w-4 h-4 text-emerald-500" /> Cold Call Hook
-                                    </div>
-                                    <div className="bg-background rounded border border-border p-3 text-sm text-text-muted">
-                                      <ul className="list-disc pl-4 space-y-1">
-                                        {draft.call_notes.split('\n').filter(Boolean).map((n: string, i: number) => <li key={i}>{n.replace(/^[-*]\s*/, '')}</li>)}
-                                      </ul>
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         )}
       </div>

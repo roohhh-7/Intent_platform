@@ -1,0 +1,110 @@
+"use client";
+import { useState, useEffect } from 'react';
+import { Search, ChevronRight, Briefcase } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+
+export default function OutboundList({ onSelectCompany }: { onSelectCompany: (id: string) => void }) {
+  const [groupedCompanies, setGroupedCompanies] = useState<{ [key: string]: any[] }>({});
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchOutbounds();
+  }, []);
+
+  const fetchOutbounds = async () => {
+    // Fetch companies that have been enriched (have contacts)
+    const { data: comps } = await supabase
+      .from('companies')
+      .select('*')
+      .not('contacts', 'is', null)
+      .order('intent_score', { ascending: false });
+    
+    // Fetch all campaigns and the join table to link them
+    const { data: camps } = await supabase.from('campaigns').select('id, name');
+    const { data: links } = await supabase.from('campaign_companies').select('campaign_id, company_id');
+
+    if (comps) {
+      const grouped: { [key: string]: any[] } = {};
+      
+      comps.forEach(comp => {
+        // Find which campaign this company belongs to
+        const link = links?.find(l => l.company_id === comp.id);
+        const camp = link ? camps?.find(c => c.id === link.campaign_id) : null;
+        
+        // If not assigned to a campaign (e.g. standalone search), put in Domain Search
+        const campName = camp ? camp.name : 'Domain Search';
+        
+        if (!grouped[campName]) grouped[campName] = [];
+        grouped[campName].push(comp);
+      });
+
+      setGroupedCompanies(grouped);
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div className="space-y-6 pb-12">
+      <div className="flex items-center justify-between border-b border-border pb-2">
+        <h2 className="text-lg font-semibold">Outbound History</h2>
+        <div className="relative">
+          <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-text-muted" />
+          <input 
+            type="text" 
+            placeholder="Search outbounds..." 
+            className="bg-background border border-border rounded pl-7 pr-2 py-1 text-xs focus:outline-none focus:border-primary transition-colors w-48"
+          />
+        </div>
+      </div>
+
+      <div className="space-y-8">
+        {loading ? (
+          <div className="panel p-4 text-center text-text-muted">Loading outbounds...</div>
+        ) : Object.keys(groupedCompanies).length === 0 ? (
+          <div className="panel p-4 text-center text-text-muted">No outbounds found. Process a company in the Intent Pipeline first!</div>
+        ) : (
+          Object.entries(groupedCompanies).map(([campaignName, comps]) => (
+            <div key={campaignName} className="space-y-3">
+              <h3 className="text-[11px] font-bold uppercase tracking-widest text-text-muted px-1 flex items-center gap-2">
+                <Briefcase className="w-3 h-3" />
+                Campaign: <span className="text-primary ml-1">{campaignName}</span>
+                <span className="ml-2 font-mono text-[9px] bg-border px-1.5 rounded-full text-text-muted">{comps.length}</span>
+              </h3>
+              
+              <div className="panel">
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-border bg-surface text-text-muted uppercase text-[10px] tracking-widest">
+                      <th className="p-3 font-semibold">Company</th>
+                      <th className="p-3 font-semibold">Domain</th>
+                      <th className="p-3 font-semibold">Enriched Contacts</th>
+                      <th className="p-3 font-semibold text-right">Intent</th>
+                      <th className="p-3"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {comps.map((company) => (
+                      <tr 
+                        key={company.id} 
+                        className="hover:bg-surface transition-colors cursor-pointer group"
+                        onClick={() => onSelectCompany(company.id)}
+                      >
+                        <td className="p-3 font-medium text-primary">{company.name}</td>
+                        <td className="p-3 text-text-muted">{company.domain}</td>
+                        <td className="p-3 text-text-muted">{company.contacts?.length || 0} Contacts Found</td>
+                        <td className="p-3 text-right mono-data font-bold text-emerald-500">{company.intent_score}</td>
+                        <td className="p-3 text-right">
+                          <ChevronRight className="w-4 h-4 text-border group-hover:text-primary transition-colors inline-block" />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
