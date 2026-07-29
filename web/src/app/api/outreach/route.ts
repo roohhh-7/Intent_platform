@@ -66,6 +66,15 @@ export async function POST(req: Request) {
     Buying Signals Detected:
     ${company.signals ? company.signals.join('\n') : 'Company is showing active intent in your market.'}
 
+    Deep Company Intelligence (Apollo.io Data):
+    ${company.apollo_data ? JSON.stringify({
+      short_description: company.apollo_data.short_description,
+      total_funding: company.apollo_data.total_funding,
+      latest_funding_stage: company.apollo_data.latest_funding_stage,
+      estimated_num_employees: company.apollo_data.estimated_num_employees,
+      technologies: company.apollo_data.current_technologies?.map((t:any) => t.name).join(', ')
+    }, null, 2) : 'No deep intelligence found.'}
+
     Our Campaign / Product Context:
     ${icpContext}
     `;

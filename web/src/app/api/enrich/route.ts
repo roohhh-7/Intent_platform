@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import axios from 'axios';
 
 export async function POST(req: Request) {
   try {
@@ -14,12 +15,31 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Missing companyId or domain' }, { status: 400 });
     }
 
-    console.log(`[Apollo Mock] Simulating enrichment for domain: ${domain}`);
+    console.log(`[Apollo Real] Enriching organization data for domain: ${domain}`);
     
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    let apolloData = null;
+    
+    if (process.env.APOLLO_API_KEY) {
+      try {
+        const response = await axios.get('https://api.apollo.io/api/v1/organizations/enrich', {
+          params: { domain },
+          headers: {
+            'Cache-Control': 'no-cache',
+            'Content-Type': 'application/json',
+            'x-api-key': process.env.APOLLO_API_KEY
+          }
+        });
+        apolloData = response.data?.organization || null;
+        console.log(`[Apollo Real] Successfully fetched data for ${domain}`);
+      } catch (apolloErr: any) {
+        console.error('[Apollo API Error]', apolloErr.response?.data || apolloErr.message);
+        // Continue with mock data if Apollo fails
+      }
+    } else {
+      console.warn('[Apollo Mock] APOLLO_API_KEY not found. Using empty org data.');
+    }
 
-    // Generate mock contacts based on the domain
+    // Generate mock contacts based on the domain (to save contact credits as requested)
     const companyName = domain.split('.')[0];
     const mockContacts = [
       {
@@ -37,26 +57,18 @@ export async function POST(req: Request) {
         email: `mchen@${domain}`,
         linkedin: `linkedin.com/in/mchen-${companyName}`,
         department: 'Marketing'
-      },
-      {
-        id: `cnt_${Date.now()}_3`,
-        name: `David Ross`,
-        title: 'Director of Growth',
-        email: `david.r@${domain}`,
-        linkedin: `linkedin.com/in/davidross-${companyName}`,
-        department: 'Growth'
       }
     ];
 
-    console.log(`[Apollo Mock] Found ${mockContacts.length} decision makers for ${domain}`);
+    console.log(`[Apollo Mock] Found ${mockContacts.length} mock decision makers for ${domain}`);
 
     // Update company in Supabase
-    // Note: This assumes a 'contacts' JSONB column exists on the companies table.
     const { error } = await supabase
       .from('companies')
       .update({ 
         status: 'Enriched',
         contacts: mockContacts,
+        apollo_data: apolloData,
         timeline: [
           { event: 'Apollo.io Enrichment Complete', timestamp: new Date().toISOString() }
         ]
@@ -68,7 +80,7 @@ export async function POST(req: Request) {
       throw error;
     }
 
-    return NextResponse.json({ success: true, data: { contacts: mockContacts } });
+    return NextResponse.json({ success: true, data: { contacts: mockContacts, organization: apolloData } });
   } catch (error: any) {
     console.error('[Enrichment API Error]', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
