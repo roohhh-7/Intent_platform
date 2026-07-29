@@ -13,6 +13,10 @@ export default function CampaignWorkspace({ campaignId, onBack }: CampaignWorksp
   const [campaign, setCampaign] = useState<any>(null);
   const [companies, setCompanies] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Manual scan state
+  const [manualDomain, setManualDomain] = useState('');
+  const [isScanning, setIsScanning] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -37,6 +41,32 @@ export default function CampaignWorkspace({ campaignId, onBack }: CampaignWorksp
     if (!error) {
       setCompanies(prev => prev.map(c => c.id === companyId ? { ...c, status: newStatus } : c));
     }
+  };
+
+  const handleManualScan = async () => {
+    if (!manualDomain) return;
+    setIsScanning(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = await fetch('/api/scan', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`
+        },
+        body: JSON.stringify({ domain: manualDomain, campaignId })
+      });
+      const data = await response.json();
+      if (data.success) {
+        setCompanies(prev => [data.data.company, ...prev]);
+        setManualDomain('');
+      } else {
+        alert('Scan failed: ' + data.error);
+      }
+    } catch (err: any) {
+      alert('Error: ' + err.message);
+    }
+    setIsScanning(false);
   };
 
   if (loading) {
@@ -157,8 +187,27 @@ export default function CampaignWorkspace({ campaignId, onBack }: CampaignWorksp
         {activeTab === 'Pipeline' && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Intent Pipeline</h2>
-              <div className="text-sm text-text-muted">Review signals and approve companies for enrichment.</div>
+              <div>
+                <h2 className="text-lg font-semibold">Intent Pipeline</h2>
+                <div className="text-sm text-text-muted">Review signals and approve companies for enrichment.</div>
+              </div>
+              <div className="flex items-center gap-2">
+                <input 
+                  type="text" 
+                  value={manualDomain}
+                  onChange={(e) => setManualDomain(e.target.value)}
+                  placeholder="e.g. stripe.com" 
+                  className="bg-surface border border-border rounded px-3 py-1.5 text-sm focus:outline-none focus:border-primary"
+                  disabled={isScanning}
+                />
+                <button 
+                  onClick={handleManualScan}
+                  disabled={isScanning || !manualDomain}
+                  className="bg-primary text-background px-4 py-1.5 rounded text-sm font-medium hover:bg-primary-hover disabled:opacity-50 transition-colors"
+                >
+                  {isScanning ? 'Scanning...' : 'Force Scan Domain'}
+                </button>
+              </div>
             </div>
             
             {pending.length === 0 ? (
