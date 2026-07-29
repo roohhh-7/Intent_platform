@@ -1,6 +1,8 @@
 "use client";
 import { Activity, Search, Bell, Briefcase, Settings, ChevronRight } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
+import Login from '@/components/Login';
 import CampaignManager from '@/components/CampaignManager';
 import NotificationCenter from '@/components/NotificationCenter';
 import CompanyDetail from '@/components/CompanyDetail';
@@ -10,8 +12,27 @@ import SettingsView from '@/components/Settings';
 import MonitoringLogs from '@/components/MonitoringLogs';
 
 export default function Home() {
+  const [session, setSession] = useState<any>(null);
   const [activeView, setActiveView] = useState('Dashboard');
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  if (!session) {
+    return <Login />;
+  }
 
   const navItems = [
     { icon: Activity, label: 'Dashboard' },
@@ -25,6 +46,10 @@ export default function Home() {
     if (label !== 'Companies') {
       setSelectedCompanyId(null);
     }
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
   };
 
   return (
@@ -85,9 +110,17 @@ export default function Home() {
           </div>
         </nav>
         
-        <div className="p-4 border-t border-border flex items-center gap-2 text-xs text-text-muted">
-          <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-          Engine Online
+        <div className="p-4 border-t border-border flex flex-col gap-3">
+          <div className="flex items-center gap-2 text-xs text-text-muted">
+            <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+            Engine Online
+          </div>
+          <button 
+            onClick={handleLogout}
+            className="text-[10px] text-text-muted hover:text-rose-500 text-left transition-colors uppercase tracking-widest font-semibold"
+          >
+            Terminate Session
+          </button>
         </div>
       </aside>
 
