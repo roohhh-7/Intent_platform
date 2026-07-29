@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import axios from 'axios';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 import { supabase } from '@/lib/supabase';
 
 export async function POST(req: Request) {
@@ -73,13 +73,13 @@ export async function POST(req: Request) {
       generationConfig: {
         responseMimeType: "application/json",
         responseSchema: {
-          type: "object",
+          type: SchemaType.OBJECT,
           properties: {
-            intentScore: { type: "integer", description: "Score from 0-100 indicating buying intent based on signals" },
-            signals: { type: "array", items: { type: "string" }, description: "Specific buying signals found" },
-            industry: { type: "string" },
-            companyName: { type: "string" },
-            reasoning: { type: "string", description: "Short 2 sentence explanation of the score" }
+            intentScore: { type: SchemaType.INTEGER, description: "Score from 0-100 indicating buying intent based on signals" },
+            signals: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING }, description: "Specific buying signals found" },
+            industry: { type: SchemaType.STRING },
+            companyName: { type: SchemaType.STRING },
+            reasoning: { type: SchemaType.STRING, description: "Short 2 sentence explanation of the score" }
           },
           required: ["intentScore", "signals", "industry", "companyName", "reasoning"]
         }
