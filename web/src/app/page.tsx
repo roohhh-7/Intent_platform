@@ -1,5 +1,5 @@
 "use client";
-import { Activity, Search, Bell, Briefcase, Settings, ChevronRight } from 'lucide-react';
+import { Activity, Search, Bell, Briefcase, Settings, ChevronRight, Send } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import Login from '@/components/Login';
