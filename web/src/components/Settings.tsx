@@ -1,3 +1,4 @@
+"use client";
 import { Save, ChevronDown, ChevronRight, Key } from 'lucide-react';
 import { useState } from 'react';
 
@@ -100,3 +101,4 @@ export default function Settings() {
     </div>
   );
 }
+

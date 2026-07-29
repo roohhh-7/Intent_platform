@@ -1,3 +1,4 @@
+"use client";
 import { useState, useEffect } from 'react';
 import { Target, ThumbsUp, ThumbsDown, Calendar, CheckCircle, XCircle, Search, Bot, Database, Loader2 } from 'lucide-react';
 import AccountBrief from './AccountBrief';
@@ -227,3 +228,4 @@ export default function CompanyDetail({ companyId, onClose }: { companyId: strin
     </div>
   );
 }
+

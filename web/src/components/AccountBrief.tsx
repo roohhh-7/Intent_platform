@@ -1,3 +1,4 @@
+"use client";
 import { Check, Bot } from 'lucide-react';
 
 export default function AccountBrief({ company, onApprove, onClose }: { company: any, onApprove: () => void, onClose: () => void }) {
@@ -179,3 +180,4 @@ export default function AccountBrief({ company, onApprove, onClose }: { company:
     </div>
   );
 }
+

@@ -1,14 +1,15 @@
+"use client";
 import { Activity, Search, Bell, Briefcase, Settings, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
-import CampaignManager from './components/CampaignManager';
-import NotificationCenter from './components/NotificationCenter';
-import CompanyDetail from './components/CompanyDetail';
-import CompaniesList from './components/CompaniesList';
-import DashboardStats from './components/DashboardStats';
-import SettingsView from './components/Settings';
-import MonitoringLogs from './components/MonitoringLogs';
+import CampaignManager from '@/components/CampaignManager';
+import NotificationCenter from '@/components/NotificationCenter';
+import CompanyDetail from '@/components/CompanyDetail';
+import CompaniesList from '@/components/CompaniesList';
+import DashboardStats from '@/components/DashboardStats';
+import SettingsView from '@/components/Settings';
+import MonitoringLogs from '@/components/MonitoringLogs';
 
-function App() {
+export default function Home() {
   const [activeView, setActiveView] = useState('Dashboard');
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
 
@@ -135,5 +136,3 @@ function App() {
     </div>
   );
 }
-
-export default App;

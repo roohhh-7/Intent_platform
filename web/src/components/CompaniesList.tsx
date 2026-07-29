@@ -1,3 +1,4 @@
+"use client";
 import { useState, useEffect } from 'react';
 import { Search, ChevronRight, Briefcase } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -110,3 +111,4 @@ export default function CompaniesList({ onSelectCompany }: { onSelectCompany: (i
     </div>
   );
 }
+

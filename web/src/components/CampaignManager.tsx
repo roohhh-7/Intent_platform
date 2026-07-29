@@ -1,3 +1,4 @@
+"use client";
 import { Plus, Play, Pause, Archive, X, Upload } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
@@ -262,3 +263,4 @@ export default function CampaignManager() {
     </div>
   );
 }
+

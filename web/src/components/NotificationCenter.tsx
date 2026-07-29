@@ -1,3 +1,4 @@
+"use client";
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Bot } from 'lucide-react';
@@ -177,3 +178,4 @@ export default function NotificationCenter({ onSelectCompany }: { onSelectCompan
     </div>
   );
 }
+

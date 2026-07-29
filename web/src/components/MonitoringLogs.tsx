@@ -1,13 +1,7 @@
+"use client";
 import { useState } from 'react';
-import { Play } from 'lucide-react';
+import { Play, Globe, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-
-const MOCK_COMPANIES = [
-  { name: 'Acme AI', domain: 'acme.ai', industry: 'Enterprise Software' },
-  { name: 'Stark Industries', domain: 'stark.com', industry: 'Defense Tech' },
-  { name: 'Wayne Enterprises', domain: 'wayne.com', industry: 'Conglomerate' },
-  { name: 'Cyberdyne Systems', domain: 'cyberdyne.com', industry: 'Robotics' },
-];
 
 export default function MonitoringLogs() {
   const [logs, setLogs] = useState([
@@ -15,58 +9,55 @@ export default function MonitoringLogs() {
   ]);
 
   const [simulating, setSimulating] = useState(false);
+  const [domainInput, setDomainInput] = useState('');
 
   const handleSimulateRun = async () => {
+    if (!domainInput) {
+      alert('Please enter a domain to scan (e.g. stripe.com)');
+      return;
+    }
+
     setSimulating(true);
-    const randomCompany = MOCK_COMPANIES[Math.floor(Math.random() * MOCK_COMPANIES.length)];
-    const intentScore = Math.floor(Math.random() * 20) + 80; // High score 80-100
-    
-    const mockSignals = [
-      "Raised $8M Series A",
-      "Hiring 6 SDRs",
-      "Opened US Sales Office",
-      "CEO mentioned scaling outbound"
-    ];
+    setLogs(prev => [{
+      id: Date.now(),
+      time: new Date().toISOString().replace('T', ' ').substring(0, 19),
+      status: 'Processing',
+      message: `Engine initializing crawl for ${domainInput}...`,
+      duration: '...'
+    }, ...prev]);
 
-    const initialTimeline = [
-      { event: 'Funding Detected', timestamp: new Date().toISOString() },
-      { event: 'Hiring Detected', timestamp: new Date().toISOString() },
-      { event: 'Expansion Detected', timestamp: new Date().toISOString() },
-      { event: 'Intent Score Generated', timestamp: new Date().toISOString() },
-      { event: 'Intent Alert Created', timestamp: new Date().toISOString() }
-    ];
+    try {
+      const response = await fetch('/api/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain: domainInput })
+      });
 
-    const { data: insertedCompany, error } = await supabase.from('companies').insert([{
-      name: randomCompany.name,
-      domain: randomCompany.domain + Math.floor(Math.random() * 10000), 
-      industry: randomCompany.industry,
-      intent_score: intentScore,
-      status: 'Pending',
-      signals: mockSignals,
-      timeline: initialTimeline
-    }]).select().single();
+      const data = await response.json();
 
-    if (!error && insertedCompany) {
-      // Link this company to a random active campaign
-      const { data: camps } = await supabase.from('campaigns').select('id').eq('status', 'Active');
-      if (camps && camps.length > 0) {
-         const randomCamp = camps[Math.floor(Math.random() * camps.length)];
-         await supabase.from('campaign_companies').insert({
-            campaign_id: randomCamp.id,
-            company_id: insertedCompany.id
-         });
+      if (data.success) {
+        setLogs(prev => [{
+          id: Date.now(),
+          time: new Date().toISOString().replace('T', ' ').substring(0, 19),
+          status: 'Success',
+          message: `Engine crawled ${domainInput} and AI extracted ${data.data.analysis.signals.length} buying signals. Intent Score: ${data.data.analysis.intentScore}`,
+          duration: '3.4s' // Mock duration for the log
+        }, ...prev]);
+        setDomainInput('');
+      } else {
+        throw new Error(data.error);
       }
-
+    } catch (error: any) {
       setLogs(prev => [{
         id: Date.now(),
         time: new Date().toISOString().replace('T', ' ').substring(0, 19),
-        status: 'Success',
-        message: `Engine Simulation found ${randomCompany.name} showing buying intent!`,
-        duration: '0.4s'
+        status: 'Failed',
+        message: `Engine error: ${error.message}`,
+        duration: '0.0s'
       }, ...prev]);
-    } else if (error) {
       alert('Simulation error: ' + error.message);
     }
+    
     setSimulating(false);
   };
 
@@ -75,13 +66,25 @@ export default function MonitoringLogs() {
       <div className="flex items-end justify-between border-b border-border pb-2">
         <h2 className="text-lg font-semibold">System Health & Logs</h2>
         <div className="flex items-center gap-6">
-          <button 
-            onClick={handleSimulateRun}
-            disabled={simulating}
-            className="flex items-center gap-1.5 px-3 py-1 bg-surface border border-border text-xs font-semibold uppercase tracking-widest rounded hover:bg-emerald-50 hover:border-emerald-500 hover:text-emerald-700 transition-colors disabled:opacity-50"
-          >
-            <Play className="w-3 h-3" /> Simulate Engine Run
-          </button>
+          <div className="flex items-center gap-2">
+            <Globe className="w-4 h-4 text-text-muted" />
+            <input 
+              type="text" 
+              placeholder="e.g. stripe.com" 
+              value={domainInput}
+              onChange={(e) => setDomainInput(e.target.value)}
+              className="bg-background border border-border rounded px-2 py-1 text-xs focus:outline-none focus:border-primary w-48"
+              disabled={simulating}
+            />
+            <button 
+              onClick={handleSimulateRun}
+              disabled={simulating}
+              className="flex items-center gap-1.5 px-3 py-1 bg-surface border border-border text-xs font-semibold uppercase tracking-widest rounded hover:bg-emerald-50 hover:border-emerald-500 hover:text-emerald-700 transition-colors disabled:opacity-50"
+            >
+              {simulating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
+              Trigger AI Engine
+            </button>
+          </div>
           
           <div className="mono-data text-emerald-600 flex items-center gap-2">
             <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
@@ -126,7 +129,7 @@ export default function MonitoringLogs() {
                 <tr key={log.id} className="hover:bg-surface transition-colors cursor-pointer">
                   <td className="px-4 py-3 text-text-muted mono-data whitespace-nowrap">{log.time}</td>
                   <td className="px-4 py-3">
-                    <span className="text-xs font-semibold tracking-wider uppercase text-emerald-600">
+                    <span className={`text-xs font-semibold tracking-wider uppercase ${log.status === 'Failed' ? 'text-rose-600' : 'text-emerald-600'}`}>
                       {log.status}
                     </span>
                   </td>
@@ -141,3 +144,4 @@ export default function MonitoringLogs() {
     </div>
   );
 }
+
