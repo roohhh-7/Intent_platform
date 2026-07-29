@@ -9,7 +9,7 @@ interface CampaignWorkspaceProps {
 }
 
 export default function CampaignWorkspace({ campaignId, onBack }: CampaignWorkspaceProps) {
-  const [activeTab, setActiveTab] = useState<'Overview' | 'Pipeline' | 'Enrichment' | 'Outreach'>('Pipeline');
+  const [activeTab, setActiveTab] = useState<'Overview' | 'Pipeline' | 'Outbound'>('Pipeline');
   const [campaign, setCampaign] = useState<any>(null);
   const [companies, setCompanies] = useState<any[]>([]);
   const [outreachDrafts, setOutreachDrafts] = useState<any[]>([]);
@@ -18,8 +18,14 @@ export default function CampaignWorkspace({ campaignId, onBack }: CampaignWorksp
   // Action states
   const [manualDomain, setManualDomain] = useState('');
   const [isScanning, setIsScanning] = useState(false);
-  const [isGenerating, setIsGenerating] = useState<string | null>(null);
-  const [isSyncing, setIsSyncing] = useState<string | null>(null);
+  
+  // Workflow state
+  const [workflowState, setWorkflowState] = useState<{
+    company: any | null;
+    status: 'idle' | 'running' | 'completed' | 'error';
+    step: 'enrich' | 'generate' | 'sync';
+    error?: string;
+  }>({ company: null, status: 'idle', step: 'enrich' });
 
   useEffect(() => {
     fetchData();
@@ -88,82 +94,59 @@ export default function CampaignWorkspace({ campaignId, onBack }: CampaignWorksp
     setIsScanning(false);
   };
 
-  const handleEnrich = async (companyId: string, domain: string) => {
+  const handleAutomatedWorkflow = async (company: any) => {
+    setWorkflowState({ company, status: 'running', step: 'enrich' });
     try {
-      const response = await fetch('/api/enrich', {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      // 1. Approve
+      await supabase.from('companies').update({ status: 'Approved' }).eq('id', company.id);
+      
+      // 2. Enrich
+      const enrichRes = await fetch('/api/enrich', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ companyId, domain })
+        body: JSON.stringify({ companyId: company.id, domain: company.domain })
       });
-      const data = await response.json();
-      if (data.success) {
-        setCompanies(prev => prev.map(c => c.id === companyId ? { ...c, status: 'Enriched', contacts: data.data.contacts } : c));
-      } else {
-        alert('Enrichment failed: ' + data.error);
+      const enrichData = await enrichRes.json();
+      if (!enrichData.success) throw new Error('Enrichment failed: ' + enrichData.error);
+      
+      setWorkflowState({ company, status: 'running', step: 'generate' });
+      
+      // 3. Generate
+      const contacts = enrichData.data.contacts;
+      const drafts = [];
+      for (const contact of contacts) {
+         const draftRes = await fetch('/api/outreach', {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+           body: JSON.stringify({ company, contact, campaignId })
+         });
+         const draftData = await draftRes.json();
+         if (!draftData.success) throw new Error('Generation failed: ' + draftData.error);
+         drafts.push(draftData.data);
       }
-    } catch (err: any) {
-      alert('Error: ' + err.message);
-    }
-  };
-
-  const handleGenerateDraft = async (company: any, contact: any) => {
-    const key = `${company.id}-${contact.email}`;
-    setIsGenerating(key);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const response = await fetch('/api/outreach', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token}`
-        },
-        body: JSON.stringify({ company, contact, campaignId })
-      });
-      const data = await response.json();
-      if (data.success) {
-        // Replace existing draft for this contact if regenerating, or add new
-        setOutreachDrafts(prev => {
-          const filtered = prev.filter(d => !(d.company_id === company.id && d.contact.email === contact.email));
-          return [data.data, ...filtered];
-        });
-      } else {
-        alert('Failed to generate outreach: ' + data.error);
+      
+      setWorkflowState({ company, status: 'running', step: 'sync' });
+      
+      // 4. CRM Sync
+      for (const draft of drafts) {
+         const syncRes = await fetch('/api/crm', {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+           body: JSON.stringify({ outreachId: draft.id })
+         });
+         const syncData = await syncRes.json();
+         if (!syncData.success) throw new Error('CRM Sync failed: ' + syncData.error);
       }
+      
+      setWorkflowState({ company, status: 'completed', step: 'sync' });
+      
+      // Refresh data to show in outbound
+      fetchData();
     } catch (err: any) {
-      alert('Error: ' + err.message);
+      setWorkflowState(prev => ({ ...prev, status: 'error', error: err.message }));
     }
-    setIsGenerating(null);
-  };
-
-  const handleApproveDraft = async (outreachId: string) => {
-    const { error } = await supabase.from('outreach').update({ status: 'Approved' }).eq('id', outreachId);
-    if (!error) {
-      setOutreachDrafts(prev => prev.map(d => d.id === outreachId ? { ...d, status: 'Approved' } : d));
-    }
-  };
-
-  const handleSyncCRM = async (outreachId: string) => {
-    setIsSyncing(outreachId);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const response = await fetch('/api/crm', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token}`
-        },
-        body: JSON.stringify({ outreachId })
-      });
-      const data = await response.json();
-      if (data.success) {
-        setOutreachDrafts(prev => prev.map(d => d.id === outreachId ? data.data : d));
-      } else {
-        alert('CRM Sync failed: ' + data.error);
-      }
-    } catch (err: any) {
-      alert('Error: ' + err.message);
-    }
-    setIsSyncing(null);
   };
 
   if (loading) {
@@ -177,8 +160,7 @@ export default function CampaignWorkspace({ campaignId, onBack }: CampaignWorksp
   const tabs = [
     { id: 'Overview', icon: BarChart, label: 'Overview' },
     { id: 'Pipeline', icon: Target, label: 'Intent Pipeline' },
-    { id: 'Enrichment', icon: Users, label: 'Enrichment Queue' },
-    { id: 'Outreach', icon: Mail, label: 'Generated Outreach' }
+    { id: 'Outbound', icon: Send, label: 'Outbound History' }
   ];
 
   const pending = companies.filter(c => c.status === 'Pending');
@@ -327,10 +309,10 @@ export default function CampaignWorkspace({ campaignId, onBack }: CampaignWorksp
                         <XCircle className="w-4 h-4" /> Ignore
                       </button>
                       <button 
-                        onClick={() => handleUpdateStatus(company.id, 'Approved')}
+                        onClick={() => handleAutomatedWorkflow(company)}
                         className="flex-1 py-2 text-sm font-medium bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 rounded hover:bg-emerald-500 hover:text-white transition-colors flex items-center justify-center gap-2"
                       >
-                        <CheckCircle2 className="w-4 h-4" /> Approve
+                        <CheckCircle2 className="w-4 h-4" /> Approve & Execute
                       </button>
                     </div>
                   </div>
@@ -340,81 +322,20 @@ export default function CampaignWorkspace({ campaignId, onBack }: CampaignWorksp
           </div>
         )}
 
-        {activeTab === 'Enrichment' && (
-          <div className="space-y-6">
-             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Enrichment Queue</h2>
-              <div className="text-sm text-text-muted">Approved companies waiting for contact enrichment.</div>
-            </div>
-            
-            {approved.length === 0 ? (
-              <div className="panel p-8 text-center text-text-muted flex flex-col items-center justify-center">
-                <Users className="w-12 h-12 mb-4 opacity-20" />
-                <h3 className="text-lg font-medium text-text mb-2">Queue Empty</h3>
-                <p className="max-w-md mx-auto">Approve companies from the Intent Pipeline to add them to the enrichment queue.</p>
-              </div>
-            ) : (
-              <div className="panel">
-                <table className="w-full text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-border bg-surface text-text-muted uppercase text-[10px] tracking-widest">
-                      <th className="p-3 font-semibold">Company</th>
-                      <th className="p-3 font-semibold">Intent</th>
-                      <th className="p-3 font-semibold">Status</th>
-                      <th className="p-3 font-semibold text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {approved.map((company) => (
-                      <tr key={company.id} className="hover:bg-surface transition-colors">
-                        <td className="p-3 font-medium text-primary">{company.name}</td>
-                        <td className="p-3 font-mono text-emerald-500">{company.intent_score}</td>
-                        <td className="p-3">
-                          {company.status === 'Enriched' ? (
-                            <span className="flex items-center gap-1.5 text-xs text-blue-500 font-medium">
-                              <CheckCircle2 className="w-3 h-3" /> Found {company.contacts?.length || 0} Contacts
-                            </span>
-                          ) : (
-                            <span className="flex items-center gap-1.5 text-xs text-text-muted">
-                              <Clock className="w-3 h-3" /> Waiting to be enriched
-                            </span>
-                          )}
-                        </td>
-                        <td className="p-3 text-right">
-                          {company.status === 'Enriched' ? (
-                            <button onClick={() => setActiveTab('Outreach')} className="text-xs bg-surface border border-border text-text-muted px-3 py-1.5 rounded font-medium hover:text-text transition-colors">
-                              Go to Outreach
-                            </button>
-                          ) : (
-                            <button 
-                              onClick={() => handleEnrich(company.id, company.domain)}
-                              className="text-xs bg-primary text-background px-3 py-1.5 rounded font-medium hover:bg-primary-hover transition-colors"
-                            >
-                              Enrich Contacts
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'Outreach' && (
+        {activeTab === 'Outbound' && (
           <div className="space-y-8">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Outreach Generation & CRM Sync</h2>
-              <div className="text-sm text-text-muted">AI-crafted drafts explicitly citing buying signals.</div>
+              <div>
+                <h2 className="text-lg font-semibold">Outbound History</h2>
+                <div className="text-sm text-text-muted">Review automated enrichment, AI generation, and CRM syncs.</div>
+              </div>
             </div>
 
             {enriched.length === 0 ? (
               <div className="panel p-8 text-center text-text-muted flex flex-col items-center justify-center min-h-[300px]">
-                <Mail className="w-12 h-12 mb-4 opacity-20" />
-                <h3 className="text-lg font-medium text-text mb-2">No Enriched Contacts</h3>
-                <p className="max-w-md mx-auto">Enrich some companies in the Enrichment Queue first before generating outreach.</p>
+                <Send className="w-12 h-12 mb-4 opacity-20" />
+                <h3 className="text-lg font-medium text-text mb-2">No Outbound History</h3>
+                <p className="max-w-md mx-auto">Approve a prospect in the Intent Pipeline to start the automated workflow.</p>
               </div>
             ) : (
               <div className="space-y-12">
@@ -426,9 +347,6 @@ export default function CampaignWorkspace({ campaignId, onBack }: CampaignWorksp
                     
                     {company.contacts && company.contacts.map((contact: any, i: number) => {
                       const draft = outreachDrafts.find(d => d.company_id === company.id && d.contact.email === contact.email);
-                      const key = `${company.id}-${contact.email}`;
-                      const isGen = isGenerating === key;
-                      const isSync = isSyncing === draft?.id;
 
                       return (
                         <div key={i} className="panel p-5 grid grid-cols-12 gap-6 relative overflow-hidden">
@@ -440,22 +358,15 @@ export default function CampaignWorkspace({ campaignId, onBack }: CampaignWorksp
                               <a href={contact.linkedin} target="_blank" className="text-xs text-blue-500 hover:underline flex items-center gap-1 mt-1"><Link className="w-3 h-3" /> Profile</a>
                             </div>
                             
-                            {!draft ? (
-                              <button 
-                                onClick={() => handleGenerateDraft(company, contact)}
-                                disabled={isGen}
-                                className="w-full bg-primary text-background px-3 py-2 rounded text-sm font-medium hover:bg-primary-hover disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
-                              >
-                                {isGen ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
-                                {isGen ? 'Drafting...' : 'Generate AI Draft'}
-                              </button>
-                            ) : (
+                            {draft && (
                               <div className="space-y-3 pt-4 border-t border-border">
                                 <div className="text-[10px] uppercase font-bold tracking-widest text-text-muted">Status</div>
                                 <div className="flex flex-col gap-2">
-                                  {draft.status === 'Draft' && <span className="inline-block px-2 py-1 bg-surface border border-border text-xs rounded text-text font-medium w-fit">Pending Review</span>}
-                                  {draft.status === 'Approved' && <span className="inline-block px-2 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-xs rounded font-medium w-fit">Approved for CRM</span>}
-                                  {draft.status === 'Synced' && <span className="inline-block px-2 py-1 bg-blue-500/10 border border-blue-500/20 text-blue-500 text-xs rounded font-medium w-fit flex items-center gap-1"><Check className="w-3 h-3"/> Synced to CRM</span>}
+                                  <span className="inline-block px-2 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-xs rounded font-medium w-fit flex items-center gap-1"><Check className="w-3 h-3"/> Enriched (Apollo)</span>
+                                  <span className="inline-block px-2 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-xs rounded font-medium w-fit flex items-center gap-1"><Check className="w-3 h-3"/> Drafted (Gemini)</span>
+                                  {draft.status === 'Synced' && (
+                                    <span className="inline-block px-2 py-1 bg-blue-500/10 border border-blue-500/20 text-blue-500 text-xs rounded font-medium w-fit flex items-center gap-1"><Check className="w-3 h-3"/> Synced to CRM</span>
+                                  )}
                                 </div>
                                 
                                 {draft.status === 'Synced' && draft.crm_record_id && (
@@ -472,7 +383,7 @@ export default function CampaignWorkspace({ campaignId, onBack }: CampaignWorksp
                           <div className="col-span-12 md:col-span-9 bg-surface rounded border border-border p-5 relative">
                             {!draft ? (
                               <div className="h-full flex items-center justify-center text-text-muted text-sm italic">
-                                AI has not generated a draft yet.
+                                Draft missing or failed.
                               </div>
                             ) : (
                               <div className="space-y-6">
@@ -510,38 +421,6 @@ export default function CampaignWorkspace({ campaignId, onBack }: CampaignWorksp
                                     </div>
                                   </div>
                                 </div>
-
-                                {/* Actions */}
-                                <div className="pt-4 border-t border-border flex justify-end gap-3">
-                                  {draft.status === 'Draft' && (
-                                    <>
-                                      <button 
-                                        onClick={() => handleGenerateDraft(company, contact)}
-                                        disabled={isGen}
-                                        className="px-4 py-1.5 text-sm font-medium border border-border rounded text-text-muted hover:text-text transition-colors flex items-center gap-2 disabled:opacity-50"
-                                      >
-                                        <RefreshCw className={`w-3.5 h-3.5 ${isGen ? 'animate-spin' : ''}`} /> Regenerate
-                                      </button>
-                                      <button 
-                                        onClick={() => handleApproveDraft(draft.id)}
-                                        className="px-4 py-1.5 text-sm font-medium bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 rounded hover:bg-emerald-500 hover:text-white transition-colors flex items-center gap-2"
-                                      >
-                                        <CheckCircle2 className="w-3.5 h-3.5" /> Approve Draft
-                                      </button>
-                                    </>
-                                  )}
-                                  
-                                  {draft.status === 'Approved' && (
-                                    <button 
-                                      onClick={() => handleSyncCRM(draft.id)}
-                                      disabled={isSync}
-                                      className="px-4 py-1.5 text-sm font-medium bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors flex items-center gap-2 disabled:opacity-50"
-                                    >
-                                      {isSync ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                                      {isSync ? 'Pushing to CRM...' : 'Sync to CRM'}
-                                    </button>
-                                  )}
-                                </div>
                               </div>
                             )}
                           </div>
@@ -555,6 +434,55 @@ export default function CampaignWorkspace({ campaignId, onBack }: CampaignWorksp
           </div>
         )}
       </div>
+      {/* Automated Workflow Modal */}
+      {workflowState.company && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-surface border border-border rounded-lg shadow-xl w-full max-w-md p-6">
+            <h2 className="text-lg font-semibold mb-6 flex items-center gap-2">
+              <Activity className="w-5 h-5 text-primary" />
+              Executing Downstream Workflow
+            </h2>
+            
+            <div className="space-y-6 ml-2">
+              <div className={`flex items-center gap-4 ${workflowState.step === 'enrich' && workflowState.status === 'running' ? 'opacity-100' : (workflowState.step !== 'enrich' && workflowState.status !== 'idle' ? 'opacity-50' : 'opacity-30')}`}>
+                <div className="w-6 flex justify-center">
+                  {workflowState.step === 'enrich' && workflowState.status === 'running' ? <RefreshCw className="w-5 h-5 animate-spin text-primary" /> : (workflowState.step !== 'enrich' ? <CheckCircle2 className="w-5 h-5 text-emerald-500" /> : <Users className="w-5 h-5" />)}
+                </div>
+                <span className="font-medium text-sm">1. Contact Enrichment (Apollo)</span>
+              </div>
+              
+              <div className={`flex items-center gap-4 ${workflowState.step === 'generate' && workflowState.status === 'running' ? 'opacity-100' : (workflowState.step === 'sync' ? 'opacity-50' : 'opacity-30')}`}>
+                <div className="w-6 flex justify-center">
+                  {workflowState.step === 'generate' && workflowState.status === 'running' ? <RefreshCw className="w-5 h-5 animate-spin text-primary" /> : (workflowState.step === 'sync' ? <CheckCircle2 className="w-5 h-5 text-emerald-500" /> : <Mail className="w-5 h-5" />)}
+                </div>
+                <span className="font-medium text-sm">2. Outreach Generation (Gemini)</span>
+              </div>
+              
+              <div className={`flex items-center gap-4 ${workflowState.step === 'sync' && workflowState.status === 'running' ? 'opacity-100' : (workflowState.status === 'completed' ? 'opacity-50' : 'opacity-30')}`}>
+                <div className="w-6 flex justify-center">
+                  {workflowState.step === 'sync' && workflowState.status === 'running' ? <RefreshCw className="w-5 h-5 animate-spin text-primary" /> : (workflowState.status === 'completed' ? <CheckCircle2 className="w-5 h-5 text-emerald-500" /> : <Send className="w-5 h-5" />)}
+                </div>
+                <span className="font-medium text-sm">3. CRM Sync (HubSpot)</span>
+              </div>
+            </div>
+
+            {workflowState.error && (
+              <div className="mt-6 p-3 bg-rose-500/10 border border-rose-500/20 text-rose-500 text-sm rounded">
+                Error: {workflowState.error}
+              </div>
+            )}
+            
+            {(workflowState.status === 'completed' || workflowState.status === 'error') && (
+              <button 
+                onClick={() => setWorkflowState({ company: null, status: 'idle', step: 'enrich' })}
+                className="mt-8 w-full bg-primary text-background px-4 py-2 rounded text-sm font-medium hover:bg-primary-hover transition-colors"
+              >
+                Close Window
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
