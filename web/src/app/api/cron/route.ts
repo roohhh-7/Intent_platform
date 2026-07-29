@@ -3,8 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 
 // We must bypass RLS for a background cron job, so we use the SERVICE_ROLE key.
 const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY!
+  process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://placeholder.supabase.co',
+  process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || 'placeholder'
 );
 
 export async function GET(req: Request) {
