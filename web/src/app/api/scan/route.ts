@@ -114,8 +114,7 @@ export async function POST(req: Request) {
       intent_score: analysis.intentScore,
       status: 'Pending',
       signals: analysis.signals,
-      timeline: initialTimeline,
-      ...(user?.id ? { user_id: user.id } : {})
+      timeline: initialTimeline
     }]).select().single();
 
     if (error) throw error;

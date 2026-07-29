@@ -71,8 +71,7 @@ export default function CampaignManager({ onSelectCampaign }: { onSelectCampaign
         icp_definition: icpConfig.selling, 
         icp_config: icpConfig, 
         intent_threshold: threshold, 
-        status: 'Active',
-        ...(userId ? { user_id: userId } : {}) // Attach user_id if logged in
+        status: 'Active'
       }
     ]);
     
