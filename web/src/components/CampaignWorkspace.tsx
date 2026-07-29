@@ -105,7 +105,10 @@ export default function CampaignWorkspace({ campaignId, onBack }: CampaignWorksp
       // 2. Enrich
       const enrichRes = await fetch('/api/enrich', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`
+        },
         body: JSON.stringify({ companyId: company.id, domain: company.domain })
       });
       const enrichData = await enrichRes.json();
