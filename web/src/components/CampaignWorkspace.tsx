@@ -27,6 +27,14 @@ export default function CampaignWorkspace({ campaignId, onBack }: CampaignWorksp
     error?: string;
   }>({ company: null, status: 'idle', step: 'enrich' });
 
+  // Prompt Config State
+  const defaultPromptConfig = {
+    system_instruction: "You are an elite B2B sales development representative. Write highly personalized, multi-channel outreach for the following prospect.",
+    rules: "You MUST explicitly mention the Buying Signals surfaced in the email body, linkedin message, and call hook. Do NOT write generic outreach. Prove you did your research."
+  };
+  const [promptConfig, setPromptConfig] = useState(defaultPromptConfig);
+  const [isSavingPrompt, setIsSavingPrompt] = useState(false);
+
   useEffect(() => {
     fetchData();
   }, [campaignId]);
@@ -38,7 +46,12 @@ export default function CampaignWorkspace({ campaignId, onBack }: CampaignWorksp
       supabase.from('campaign_companies').select('company_id, companies(*)').eq('campaign_id', campaignId)
     ]);
     
-    if (campRes.data) setCampaign(campRes.data);
+    if (campRes.data) {
+      setCampaign(campRes.data);
+      if (campRes.data.icp_config?.prompt_config) {
+        setPromptConfig(campRes.data.icp_config.prompt_config);
+      }
+    }
     
     if (compRes.data) {
       const companiesData = compRes.data.map((c: any) => c.companies).filter(Boolean);
@@ -180,16 +193,6 @@ export default function CampaignWorkspace({ campaignId, onBack }: CampaignWorksp
   const approved = companies.filter(c => c.status === 'Approved' || c.status === 'Enriched');
   const ignored = companies.filter(c => c.status === 'Ignored');
   const enriched = companies.filter(c => c.status === 'Enriched');
-
-  // Prompt Config State
-  const defaultPromptConfig = {
-    system_instruction: "You are an elite B2B sales development representative. Write highly personalized, multi-channel outreach for the following prospect.",
-    rules: "You MUST explicitly mention the Buying Signals surfaced in the email body, linkedin message, and call hook. Do NOT write generic outreach. Prove you did your research."
-  };
-  
-  const currentPromptConfig = campaign.icp_config?.prompt_config || defaultPromptConfig;
-  const [promptConfig, setPromptConfig] = useState(currentPromptConfig);
-  const [isSavingPrompt, setIsSavingPrompt] = useState(false);
 
   const handleSavePrompt = async () => {
     setIsSavingPrompt(true);
