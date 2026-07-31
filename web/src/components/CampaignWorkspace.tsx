@@ -172,13 +172,37 @@ export default function CampaignWorkspace({ campaignId, onBack }: CampaignWorksp
 
   const tabs = [
     { id: 'Overview', icon: BarChart, label: 'Overview' },
-    { id: 'Pipeline', icon: Target, label: 'Intent Pipeline' }
+    { id: 'Pipeline', icon: Target, label: 'Intent Pipeline' },
+    { id: 'Prompt', icon: MessageSquare, label: 'Prompt Setup' }
   ];
 
   const pending = companies.filter(c => c.status === 'Pending');
   const approved = companies.filter(c => c.status === 'Approved' || c.status === 'Enriched');
   const ignored = companies.filter(c => c.status === 'Ignored');
   const enriched = companies.filter(c => c.status === 'Enriched');
+
+  // Prompt Config State
+  const defaultPromptConfig = {
+    system_instruction: "You are an elite B2B sales development representative. Write highly personalized, multi-channel outreach for the following prospect.",
+    rules: "You MUST explicitly mention the Buying Signals surfaced in the email body, linkedin message, and call hook. Do NOT write generic outreach. Prove you did your research."
+  };
+  
+  const currentPromptConfig = campaign.icp_config?.prompt_config || defaultPromptConfig;
+  const [promptConfig, setPromptConfig] = useState(currentPromptConfig);
+  const [isSavingPrompt, setIsSavingPrompt] = useState(false);
+
+  const handleSavePrompt = async () => {
+    setIsSavingPrompt(true);
+    const updatedIcpConfig = { ...campaign.icp_config, prompt_config: promptConfig };
+    const { error } = await supabase.from('campaigns').update({ icp_config: updatedIcpConfig }).eq('id', campaignId);
+    if (error) {
+      alert('Failed to save prompt config: ' + error.message);
+    } else {
+      setCampaign(prev => ({ ...prev, icp_config: updatedIcpConfig }));
+      alert('Prompt configuration saved successfully!');
+    }
+    setIsSavingPrompt(false);
+  };
 
   return (
     <div className="flex flex-col h-full space-y-6">
@@ -341,7 +365,53 @@ export default function CampaignWorkspace({ campaignId, onBack }: CampaignWorksp
           </div>
         )}
 
+        {activeTab === 'Prompt' && (
+          <div className="space-y-6 max-w-4xl">
+            <div>
+              <h2 className="text-lg font-semibold mb-1">Prompt Configuration</h2>
+              <p className="text-sm text-text-muted">Customize the instructions sent to Gemini when generating personalized outreach for this campaign.</p>
+            </div>
+            
+            <div className="panel p-6 space-y-6">
+              <div className="space-y-3">
+                <label className="block text-sm font-semibold uppercase tracking-widest text-text-muted">System Persona & Objective</label>
+                <textarea 
+                  rows={3}
+                  value={promptConfig.system_instruction}
+                  onChange={(e) => setPromptConfig({...promptConfig, system_instruction: e.target.value})}
+                  className="w-full bg-background border border-border rounded px-4 py-3 text-sm focus:outline-none focus:border-primary transition-colors resize-none leading-relaxed"
+                  placeholder="e.g. You are an elite B2B sales development representative..."
+                />
+                <p className="text-xs text-text-muted">This defines the core identity and goal of the AI writer.</p>
+              </div>
+
+              <div className="space-y-3">
+                <label className="block text-sm font-semibold uppercase tracking-widest text-text-muted">Writing Rules & Constraints</label>
+                <textarea 
+                  rows={4}
+                  value={promptConfig.rules}
+                  onChange={(e) => setPromptConfig({...promptConfig, rules: e.target.value})}
+                  className="w-full bg-background border border-border rounded px-4 py-3 text-sm focus:outline-none focus:border-primary transition-colors resize-none leading-relaxed"
+                  placeholder="e.g. You MUST explicitly mention the Buying Signals..."
+                />
+                <p className="text-xs text-text-muted">Specific constraints for formatting, tone, and requirements (like mentioning signals or keeping it under 100 words).</p>
+              </div>
+            </div>
+
+            <div className="flex justify-end">
+              <button 
+                onClick={handleSavePrompt}
+                disabled={isSavingPrompt}
+                className="bg-primary hover:bg-primary-hover text-background px-6 py-2 rounded font-medium transition-colors text-sm disabled:opacity-50"
+              >
+                {isSavingPrompt ? 'Saving...' : 'Save Configuration'}
+              </button>
+            </div>
+          </div>
+        )}
+
       </div>
+
       {/* Automated Workflow Modal */}
       {workflowState.company && (
         <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">

@@ -28,10 +28,22 @@ export async function POST(req: Request) {
 
     // Fetch the campaign context
     let icpContext = '';
+    let systemInstruction = "You are an elite B2B sales development representative. Write highly personalized, multi-channel outreach for the following prospect.";
+    let rules = "You MUST explicitly mention the Buying Signals surfaced in the email body, linkedin message, and call hook. Do NOT write generic outreach. Prove you did your research.";
+    
     if (campaignId) {
       const { data: campaign } = await supabase.from('campaigns').select('icp_config').eq('id', campaignId).single();
       if (campaign && campaign.icp_config) {
         icpContext = JSON.stringify(campaign.icp_config);
+        
+        if (campaign.icp_config.prompt_config) {
+          if (campaign.icp_config.prompt_config.system_instruction) {
+             systemInstruction = campaign.icp_config.prompt_config.system_instruction;
+          }
+          if (campaign.icp_config.prompt_config.rules) {
+             rules = campaign.icp_config.prompt_config.rules;
+          }
+        }
       }
     }
 
@@ -54,10 +66,9 @@ export async function POST(req: Request) {
       }
     });
 
-    const prompt = `You are an elite B2B sales development representative. 
-    Write highly personalized, multi-channel outreach for the following prospect.
+    const prompt = `${systemInstruction}
     
-    CRITICAL INSTRUCTION: You MUST explicitly mention the "Buying Signals" surfaced in the email body, linkedin message, and call hook. Do NOT write generic outreach. Prove you did your research.
+    CRITICAL INSTRUCTION: ${rules}
 
     Prospect Name: ${contact.name}
     Prospect Title: ${contact.title}
