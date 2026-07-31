@@ -198,7 +198,7 @@ export default function CampaignWorkspace({ campaignId, onBack }: CampaignWorksp
     if (error) {
       alert('Failed to save prompt config: ' + error.message);
     } else {
-      setCampaign(prev => ({ ...prev, icp_config: updatedIcpConfig }));
+      setCampaign((prev: any) => ({ ...prev, icp_config: updatedIcpConfig }));
       alert('Prompt configuration saved successfully!');
     }
     setIsSavingPrompt(false);
