@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { Search, ChevronRight, Briefcase } from 'lucide-react';
+import { Search, ChevronRight, Briefcase, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 export default function CompaniesList({ onSelectCompany }: { onSelectCompany: (id: string) => void }) {
@@ -37,6 +37,27 @@ export default function CompaniesList({ onSelectCompany }: { onSelectCompany: (i
       setGroupedCompanies(grouped);
     }
     setLoading(false);
+  };
+
+  const handleDeleteCompany = async (e: React.MouseEvent, companyId: string) => {
+    e.stopPropagation();
+    if (!window.confirm('Are you sure you want to permanently delete this company from the database?')) return;
+    
+    // Optimistic UI update
+    setGroupedCompanies(prev => {
+      const next = { ...prev };
+      for (const camp in next) {
+        next[camp] = next[camp].filter((c: any) => c.id !== companyId);
+        if (next[camp].length === 0) delete next[camp];
+      }
+      return next;
+    });
+
+    const { error } = await supabase.from('companies').delete().eq('id', companyId);
+    if (error) {
+      alert('Failed to delete company: ' + error.message);
+      fetchCompanies(); // revert on failure
+    }
   };
 
   return (
@@ -97,7 +118,14 @@ export default function CompaniesList({ onSelectCompany }: { onSelectCompany: (i
                         </td>
                         <td className="p-3 text-right mono-data font-bold text-primary">{company.intent_score}</td>
                         <td className="p-3 text-right">
-                          <ChevronRight className="w-4 h-4 text-border group-hover:text-primary transition-colors inline-block" />
+                          <button 
+                            onClick={(e) => handleDeleteCompany(e, company.id)}
+                            className="p-1.5 mr-2 text-text-muted hover:text-rose-500 hover:bg-rose-500/10 rounded transition-all opacity-0 group-hover:opacity-100 inline-flex align-middle"
+                            title="Permanently delete from database"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                          <ChevronRight className="w-4 h-4 text-border group-hover:text-primary transition-colors inline-block align-middle" />
                         </td>
                       </tr>
                     ))}
