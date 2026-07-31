@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 export async function POST(req: Request) {
   try {
@@ -10,10 +11,23 @@ export async function POST(req: Request) {
     }
     const token = authHeader.replace('Bearer ', '');
     
-    // Standard user auth
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    if (authError || !user) {
+    // Secure Server-Side Supabase Client
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
+    const authSupabase = createClient(supabaseUrl, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+      global: { headers: { Authorization: `Bearer ${token}` } }
+    });
+
+    // Validate token and get user
+    const { data: authData, error: authError } = await authSupabase.auth.getUser(token);
+    if (authError || !authData?.user) {
       return NextResponse.json({ success: false, error: 'Unauthorized: Invalid token' }, { status: 401 });
+    }
+    const user = authData.user;
+
+    // Rate Limiting Check (200 outreaches per 24 hours per user)
+    const isAllowed = await checkRateLimit(user.id, 'outreach', 200, 24);
+    if (!isAllowed) {
+      return NextResponse.json({ success: false, error: 'Rate limit exceeded: Max 200 generations per 24 hours' }, { status: 429 });
     }
 
     const { company, contact, campaignId } = await req.json();
@@ -32,7 +46,7 @@ export async function POST(req: Request) {
     let rules = "You MUST explicitly mention the Buying Signals surfaced in the email body, linkedin message, and call hook. Do NOT write generic outreach. Prove you did your research.";
     
     if (campaignId) {
-      const { data: campaign } = await supabase.from('campaigns').select('icp_config').eq('id', campaignId).single();
+      const { data: campaign } = await authSupabase.from('campaigns').select('icp_config').eq('id', campaignId).single();
       if (campaign && campaign.icp_config) {
         icpContext = JSON.stringify(campaign.icp_config);
         
@@ -94,7 +108,7 @@ export async function POST(req: Request) {
     const generated = JSON.parse(result.response.text());
 
     // Save to the outreach table
-    const { data: outreachRecord, error: insertError } = await supabase.from('outreach').insert({
+    const { data: outreachRecord, error: insertError } = await authSupabase.from('outreach').insert({
       company_id: company.id,
       contact: contact,
       email_subject: generated.emailSubject,

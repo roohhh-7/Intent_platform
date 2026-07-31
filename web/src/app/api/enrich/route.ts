@@ -1,12 +1,32 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js';
 import axios from 'axios';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 export async function POST(req: Request) {
   try {
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+    const token = authHeader.replace('Bearer ', '');
+
+    // Secure Server-Side Supabase Client
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
+    const authSupabase = createClient(supabaseUrl, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+      global: { headers: { Authorization: `Bearer ${token}` } }
+    });
+
+    // Validate token and get user
+    const { data: authData, error: authError } = await authSupabase.auth.getUser(token);
+    if (authError || !authData?.user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized: Invalid token' }, { status: 401 });
+    }
+
+    // Rate Limiting Check (100 enrichments per 24 hours per user)
+    const isAllowed = await checkRateLimit(authData.user.id, 'enrich', 100, 24);
+    if (!isAllowed) {
+      return NextResponse.json({ success: false, error: 'Rate limit exceeded: Max 100 enrichments per 24 hours' }, { status: 429 });
     }
 
     const { companyId, domain } = await req.json();
@@ -63,7 +83,7 @@ export async function POST(req: Request) {
     console.log(`[Apollo Mock] Found ${mockContacts.length} mock decision makers for ${domain}`);
 
     // Update company in Supabase
-    const { error } = await supabase
+    const { error } = await authSupabase
       .from('companies')
       .update({ 
         status: 'Enriched',
