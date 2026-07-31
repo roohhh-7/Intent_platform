@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js';
 import axios from 'axios';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 export async function POST(req: Request) {
   try {
@@ -10,10 +11,23 @@ export async function POST(req: Request) {
     }
     const token = authHeader.replace('Bearer ', '');
     
-    // Standard user auth
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    if (authError || !user) {
+    // Secure Server-Side Supabase Client
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
+    const authSupabase = createClient(supabaseUrl, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+      global: { headers: { Authorization: `Bearer ${token}` } }
+    });
+
+    // Validate token and get user
+    const { data: authData, error: authError } = await authSupabase.auth.getUser(token);
+    if (authError || !authData?.user) {
       return NextResponse.json({ success: false, error: 'Unauthorized: Invalid token' }, { status: 401 });
+    }
+    const user = authData.user;
+
+    // Rate Limiting Check (100 CRM syncs per 24 hours per user to protect HubSpot limits)
+    const isAllowed = await checkRateLimit(user.id, 'crm', 100, 24);
+    if (!isAllowed) {
+      return NextResponse.json({ success: false, error: 'Rate limit exceeded: Max 100 CRM syncs per 24 hours' }, { status: 429 });
     }
 
     const { outreachId } = await req.json();
@@ -23,7 +37,7 @@ export async function POST(req: Request) {
     }
 
     // 1. Fetch the outreach record to get the data
-    const { data: outreachRecord, error: fetchError } = await supabase
+    const { data: outreachRecord, error: fetchError } = await authSupabase
       .from('outreach')
       .select('*, companies(name)')
       .eq('id', outreachId)
@@ -92,7 +106,7 @@ export async function POST(req: Request) {
     }
 
     // Update the outreach record in Supabase
-    const { data, error } = await supabase
+    const { data, error } = await authSupabase
       .from('outreach')
       .update({
         status: 'Synced',
