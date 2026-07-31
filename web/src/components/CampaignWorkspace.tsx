@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { ArrowLeft, Target, Users, Mail, Activity, BarChart, CheckCircle2, XCircle, Clock, MessageSquare, Phone, RefreshCw, Send, Check, Link } from 'lucide-react';
+import { ArrowLeft, Target, Users, Mail, Activity, BarChart, CheckCircle2, XCircle, Clock, MessageSquare, Phone, RefreshCw, Send, Check, Link, Trash2 } from 'lucide-react';
 
 interface CampaignWorkspaceProps {
   campaignId: string;
@@ -62,6 +62,16 @@ export default function CampaignWorkspace({ campaignId, onBack }: CampaignWorksp
     const { error } = await supabase.from('companies').update({ status: newStatus }).eq('id', companyId);
     if (!error) {
       setCompanies(prev => prev.map(c => c.id === companyId ? { ...c, status: newStatus } : c));
+    }
+  };
+
+  const handleDeleteCompany = async (companyId: string) => {
+    if (!window.confirm('Remove this company from the campaign?')) return;
+    const { error } = await supabase.from('campaign_companies').delete().eq('company_id', companyId).eq('campaign_id', campaignId);
+    if (!error) {
+      setCompanies(prev => prev.filter(c => c.id !== companyId));
+    } else {
+      alert('Error removing company: ' + error.message);
     }
   };
 
@@ -282,9 +292,16 @@ export default function CampaignWorkspace({ campaignId, onBack }: CampaignWorksp
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {pending.map(company => (
-                  <div key={company.id} className="panel p-5 flex flex-col">
+                  <div key={company.id} className="panel p-5 flex flex-col group relative">
+                    <button 
+                      onClick={() => handleDeleteCompany(company.id)}
+                      className="absolute top-2 right-2 p-1.5 text-text-muted hover:text-rose-500 hover:bg-rose-500/10 rounded transition-all opacity-0 group-hover:opacity-100 z-10"
+                      title="Remove from campaign"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                     <div className="flex justify-between items-start mb-4">
-                      <div>
+                      <div className="pr-8">
                         <h3 className="text-lg font-bold text-primary mb-1">{company.name}</h3>
                         <a href={`https://${company.domain}`} target="_blank" rel="noreferrer" className="text-sm text-blue-500 hover:underline">{company.domain}</a>
                       </div>
