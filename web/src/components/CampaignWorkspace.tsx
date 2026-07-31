@@ -9,7 +9,7 @@ interface CampaignWorkspaceProps {
 }
 
 export default function CampaignWorkspace({ campaignId, onBack }: CampaignWorkspaceProps) {
-  const [activeTab, setActiveTab] = useState<'Overview' | 'Pipeline'>('Pipeline');
+  const [activeTab, setActiveTab] = useState<'Overview' | 'Pipeline' | 'Prompt'>('Pipeline');
   const [campaign, setCampaign] = useState<any>(null);
   const [companies, setCompanies] = useState<any[]>([]);
   const [outreachDrafts, setOutreachDrafts] = useState<any[]>([]);
