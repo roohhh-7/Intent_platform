@@ -11,14 +11,12 @@ export async function POST(req: Request) {
     }
     const token = authHeader.replace('Bearer ', '');
     
-    // Secure Server-Side Supabase Client
+    // Secure Server-Side Supabase Client (Admin)
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
-    const authSupabase = createClient(supabaseUrl, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
-      global: { headers: { Authorization: `Bearer ${token}` } }
-    });
+    const supabaseAdmin = createClient(supabaseUrl, process.env.SUPABASE_SERVICE_KEY!);
 
     // Validate token and get user
-    const { data: authData, error: authError } = await authSupabase.auth.getUser(token);
+    const { data: authData, error: authError } = await supabaseAdmin.auth.getUser(token);
     if (authError || !authData?.user) {
       return NextResponse.json({ success: false, error: 'Unauthorized: Invalid token' }, { status: 401 });
     }
@@ -37,7 +35,7 @@ export async function POST(req: Request) {
     }
 
     // 1. Fetch the outreach record to get the data
-    const { data: outreachRecord, error: fetchError } = await authSupabase
+    const { data: outreachRecord, error: fetchError } = await supabaseAdmin
       .from('outreach')
       .select('*, companies(name)')
       .eq('id', outreachId)
@@ -106,7 +104,7 @@ export async function POST(req: Request) {
     }
 
     // Update the outreach record in Supabase
-    const { data, error } = await authSupabase
+    const { data, error } = await supabaseAdmin
       .from('outreach')
       .update({
         status: 'Synced',

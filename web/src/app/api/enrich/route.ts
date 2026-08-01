@@ -11,14 +11,12 @@ export async function POST(req: Request) {
     }
     const token = authHeader.replace('Bearer ', '');
 
-    // Secure Server-Side Supabase Client
+    // Secure Server-Side Supabase Client (Admin)
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
-    const authSupabase = createClient(supabaseUrl, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
-      global: { headers: { Authorization: `Bearer ${token}` } }
-    });
+    const supabaseAdmin = createClient(supabaseUrl, process.env.SUPABASE_SERVICE_KEY!);
 
     // Validate token and get user
-    const { data: authData, error: authError } = await authSupabase.auth.getUser(token);
+    const { data: authData, error: authError } = await supabaseAdmin.auth.getUser(token);
     if (authError || !authData?.user) {
       return NextResponse.json({ success: false, error: 'Unauthorized: Invalid token' }, { status: 401 });
     }
@@ -83,7 +81,7 @@ export async function POST(req: Request) {
     console.log(`[Apollo Mock] Found ${mockContacts.length} mock decision makers for ${domain}`);
 
     // Update company in Supabase
-    const { error } = await authSupabase
+    const { error } = await supabaseAdmin
       .from('companies')
       .update({ 
         status: 'Enriched',

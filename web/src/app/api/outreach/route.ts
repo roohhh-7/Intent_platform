@@ -11,14 +11,12 @@ export async function POST(req: Request) {
     }
     const token = authHeader.replace('Bearer ', '');
     
-    // Secure Server-Side Supabase Client
+    // Secure Server-Side Supabase Client (Admin)
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
-    const authSupabase = createClient(supabaseUrl, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
-      global: { headers: { Authorization: `Bearer ${token}` } }
-    });
+    const supabaseAdmin = createClient(supabaseUrl, process.env.SUPABASE_SERVICE_KEY!);
 
     // Validate token and get user
-    const { data: authData, error: authError } = await authSupabase.auth.getUser(token);
+    const { data: authData, error: authError } = await supabaseAdmin.auth.getUser(token);
     if (authError || !authData?.user) {
       return NextResponse.json({ success: false, error: 'Unauthorized: Invalid token' }, { status: 401 });
     }
@@ -46,7 +44,7 @@ export async function POST(req: Request) {
     let rules = "You MUST explicitly mention the Buying Signals surfaced in the email body, linkedin message, and call hook. Do NOT write generic outreach. Prove you did your research.";
     
     if (campaignId) {
-      const { data: campaign } = await authSupabase.from('campaigns').select('icp_config').eq('id', campaignId).single();
+      const { data: campaign } = await supabaseAdmin.from('campaigns').select('icp_config').eq('id', campaignId).single();
       if (campaign && campaign.icp_config) {
         icpContext = JSON.stringify(campaign.icp_config);
         
@@ -108,7 +106,7 @@ export async function POST(req: Request) {
     const generated = JSON.parse(result.response.text());
 
     // Save to the outreach table
-    const { data: outreachRecord, error: insertError } = await authSupabase.from('outreach').insert({
+    const { data: outreachRecord, error: insertError } = await supabaseAdmin.from('outreach').insert({
       company_id: company.id,
       contact: contact,
       email_subject: generated.emailSubject,

@@ -16,17 +16,15 @@ export async function POST(req: Request) {
     const isCron = token === process.env.CRON_SECRET;
     let user = null;
     
-    // Secure Server-Side Supabase Client
+    // Secure Server-Side Supabase Client (Admin)
+    // We use the service key to bypass RLS for server-side operations, 
+    // but we manually validate the user's token first to ensure security.
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
-    const authSupabase = isCron 
-      ? createClient(supabaseUrl, process.env.SUPABASE_SERVICE_KEY!)
-      : createClient(supabaseUrl, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
-          global: { headers: { Authorization: `Bearer ${token}` } }
-        });
+    const supabaseAdmin = createClient(supabaseUrl, process.env.SUPABASE_SERVICE_KEY!);
 
     if (!isCron) {
       // Standard user auth
-      const { data, error: authError } = await authSupabase.auth.getUser(token);
+      const { data, error: authError } = await supabaseAdmin.auth.getUser(token);
       if (authError || !data?.user) {
         return NextResponse.json({ success: false, error: 'Unauthorized: Invalid token' }, { status: 401 });
       }
@@ -123,7 +121,7 @@ export async function POST(req: Request) {
       { event: 'Intent Alert Created', timestamp: new Date().toISOString() }
     ];
 
-    const { data: insertedCompany, error } = await authSupabase.from('companies').upsert([{
+    const { data: insertedCompany, error } = await supabaseAdmin.from('companies').upsert([{
       name: analysis.companyName,
       domain: domain,
       industry: analysis.industry,
@@ -137,7 +135,7 @@ export async function POST(req: Request) {
 
     // Link to campaign if provided
     if (campaignId) {
-      const { error: linkError } = await authSupabase.from('campaign_companies').insert({
+      const { error: linkError } = await supabaseAdmin.from('campaign_companies').insert({
         campaign_id: campaignId,
         company_id: insertedCompany.id
       });
